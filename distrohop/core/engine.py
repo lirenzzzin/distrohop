@@ -7,7 +7,7 @@ import re
 import socket
 import tempfile
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from pathlib import PurePosixPath
 from typing import Any, Dict, Mapping, Optional, Sequence, Tuple
@@ -21,6 +21,8 @@ from distrohop.platform_ import current_platform
 from distrohop.restore.apply_raw import apply_raw_profile
 from distrohop.restore.apply_neutral import apply_neutral_profile
 from distrohop.restore import installer
+from distrohop.restore import nixos
+from distrohop.restore import resume as resume_state
 from distrohop.restore.processes import is_browser_running
 from distrohop.vault.bundle import (
     assemble_bundle,
@@ -59,6 +61,9 @@ class RestorePlan:
     mode: str = "raw"
     warnings: Tuple[str, ...] = ()
     install_command: Tuple[str, ...] = ()
+    preparation: str = ""
+    requires_resume: bool = False
+    os_info: Mapping[str, Any] = field(default_factory=dict)
 
 
 def list_inventory(
@@ -590,6 +595,8 @@ def plan_restore(
     ]
     installed = any(item.get("installed") is not False for item in matching_browsers)
     install_command: Tuple[str, ...] = ()
+    preparation = ""
+    requires_resume = False
     if not installed:
         if not install:
             raise ValueError(
@@ -597,9 +604,17 @@ def plan_restore(
                     target_id
                 )
             )
-        install_command = installer.plan_install(
-            target_id, data.get("os", {})
-        )
+        strategy = str(data.get("os", {}).get("strategy") or "")
+        if strategy == "declarativa":
+            preparation = "declarative"
+            requires_resume = True
+        else:
+            install_command = installer.plan_install(
+                target_id, data.get("os", {})
+            )
+            if strategy == "atômica" and data.get("os", {}).get("requires_reboot"):
+                preparation = "atomic-reboot"
+                requires_resume = True
     if mode == "raw":
         outputs = tuple(
             str(target / PurePosixPath(relative).relative_to(payload_prefix))
@@ -625,6 +640,14 @@ def plan_restore(
         warnings = (
             "Senhas não são importadas automaticamente entre engines.",
             "Alguns sites podem exigir novo login por dados presos ao localStorage.",
+        )
+    if preparation == "declarative":
+        warnings += (
+            "A distribuição é declarativa: siga o arquivo de orientação e use resume.",
+        )
+    elif preparation == "atomic-reboot":
+        warnings += (
+            "A instalação atômica exige reboot; o perfil só será aplicado por resume.",
         )
     outputs += ("{}.distrohop-before-<data>".format(target),)
     callback(
@@ -652,6 +675,9 @@ def plan_restore(
         mode=mode,
         warnings=warnings,
         install_command=install_command,
+        preparation=preparation,
+        requires_resume=requires_resume,
+        os_info=dict(data.get("os", {})),
     )
 
 
@@ -661,6 +687,9 @@ def run_restore(
     password: Optional[str] = None,
     callback: EventCallback = discard_event,
     running_check=is_browser_running,
+    home: Optional[Path] = None,
+    etc_nixos: Path = Path("/etc/nixos"),
+    boot_id_reader=resume_state.boot_id,
 ) -> Dict[str, Any]:
     browser_id = plan.target_browser_id or str(plan.component.get("id") or "")
     if running_check(browser_id):
@@ -669,6 +698,49 @@ def run_restore(
                 plan.component.get("name") or browser_id
             )
         )
+    if plan.requires_resume:
+        guidance = None
+        if plan.preparation == "declarative":
+            callback(Event("step", "Gerando orientação declarativa"))
+            guidance = nixos.write_declarative_guidance(
+                plan.bundle,
+                browser_id,
+                plan.os_info,
+                home=home or Path(os.environ.get("HOME", str(Path.home()))),
+                etc_nixos=etc_nixos,
+            )
+        elif plan.install_command:
+            callback(
+                Event(
+                    "step",
+                    "Instalando navegador na imagem atômica",
+                    {"command": list(plan.install_command)},
+                )
+            )
+            installer.run_install(plan.install_command)
+        state_path = resume_state.write_resume_state(
+            plan.bundle,
+            {
+                "browser_id": str(plan.component.get("id") or ""),
+                "source_profile": str(plan.component.get("profile") or ""),
+                "target_browser_id": browser_id,
+                "target_profile": str(plan.target_profile),
+                "preparation": plan.preparation,
+                "boot_id": boot_id_reader() if plan.preparation == "atomic-reboot" else "",
+            },
+        )
+        result = {
+            "pending": True,
+            "browser": browser_id,
+            "preparation": plan.preparation,
+            "guidance": str(guidance) if guidance else None,
+            "resume_state": str(state_path),
+            "next": "reinicie e execute distrohop resume"
+            if plan.preparation == "atomic-reboot"
+            else "aplique a declaração e execute distrohop resume",
+        }
+        callback(Event("warn", "Restore aguardando preparação e resume", result))
+        return result
     if plan.install_command:
         callback(
             Event(
@@ -714,4 +786,56 @@ def run_restore(
                 callback(Event("warn", str(warning)))
     result.update({"browser": browser_id, "mode": plan.mode})
     callback(Event("done", "Restore concluído", result))
+    return result
+
+
+def plan_resume(
+    bundle: Path,
+    *,
+    inventory: Optional[Mapping[str, Any]] = None,
+    callback: EventCallback = discard_event,
+    boot_id_reader=resume_state.boot_id,
+) -> RestorePlan:
+    state = resume_state.load_resume_state(bundle)
+    if (
+        state.get("preparation") == "atomic-reboot"
+        and state.get("boot_id")
+        and state.get("boot_id") == boot_id_reader()
+    ):
+        raise RuntimeError(
+            "a imagem atômica ainda está no mesmo boot; reinicie antes de resume"
+        )
+    data = inventory or list_inventory(callback=callback)
+    try:
+        return plan_restore(
+            bundle,
+            browser_id=str(state["browser_id"]),
+            source_profile=str(state["source_profile"]),
+            target_browser_id=str(state["target_browser_id"]),
+            target_profile=Path(str(state["target_profile"])),
+            install=False,
+            inventory=data,
+            callback=callback,
+        )
+    except ValueError as error:
+        raise RuntimeError(
+            "a preparação ainda não está pronta: {}".format(error)
+        ) from error
+
+
+def run_resume(
+    plan: RestorePlan,
+    *,
+    password: Optional[str] = None,
+    callback: EventCallback = discard_event,
+    running_check=is_browser_running,
+) -> Dict[str, Any]:
+    result = run_restore(
+        plan,
+        password=password,
+        callback=callback,
+        running_check=running_check,
+    )
+    if not result.get("pending"):
+        resume_state.clear_resume_state(plan.bundle)
     return result

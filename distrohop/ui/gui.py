@@ -20,8 +20,10 @@ from distrohop.core.engine import (
     list_inventory,
     plan_backup,
     plan_restore,
+    plan_resume,
     run_backup,
     run_restore,
+    run_resume,
 )
 from distrohop.core.events import Event
 from distrohop.core.selection import Selection
@@ -748,7 +750,13 @@ class DistrohopApp:
                 text="Abrir restore",
                 style="Secondary.TButton",
                 command=self.show_restore_bundle,
-            ).pack(anchor="w")
+            ).pack(side="left")
+            ttk.Button(
+                restore.body,
+                text="Retomar pendente",
+                style="Ghost.TButton",
+                command=self.show_resume_bundle,
+            ).pack(side="left", padx=8)
 
         self._show("home", "Visão geral", build)
 
@@ -1012,6 +1020,91 @@ class DistrohopApp:
 
         self._show("restore-bundle", "Restaurar", build)
 
+    def show_resume_bundle(self) -> None:
+        self.set_steps(RESTORE_STEPS, 3)
+        path_var = tk.StringVar()
+        password_var = tk.StringVar()
+
+        def build(page: ttk.Frame) -> None:
+            self._hero(
+                page,
+                "Retome depois da preparação.",
+                "Use após aplicar a declaração do sistema ou reiniciar uma distribuição atômica.",
+            )
+            panel = self._panel(page, 325)
+            panel.pack(fill="x")
+            body = panel.body
+            ttk.Label(body, text="Bundle com estado pendente", style="Section.Panel.TLabel").pack(anchor="w")
+            row = ttk.Frame(body, style="Panel.TFrame")
+            row.pack(fill="x", pady=(12, 14))
+            ttk.Entry(row, textvariable=path_var).pack(side="left", fill="x", expand=True)
+            ttk.Button(
+                row,
+                text="Procurar",
+                style="Secondary.TButton",
+                command=lambda: path_var.set(
+                    filedialog.askdirectory(title="Escolha o bundle pendente") or path_var.get()
+                ),
+            ).pack(side="left", padx=(10, 0))
+            ttk.Label(body, text="Senha, se o bundle estiver cifrado", style="Muted.Panel.TLabel").pack(anchor="w")
+            ttk.Entry(body, textvariable=password_var, show="•").pack(fill="x", pady=(6, 18))
+            footer = ttk.Frame(body, style="Panel.TFrame")
+            footer.pack(fill="x")
+            ttk.Button(footer, text="Voltar", style="Secondary.TButton", command=self.show_home).pack(side="left")
+
+            def start(dry_run: bool) -> None:
+                if self.inventory is None:
+                    messagebox.showinfo("Distrohop", "A detecção ainda está terminando.")
+                    return
+                if not path_var.get():
+                    messagebox.showwarning("Distrohop", "Escolha a pasta do bundle.")
+                    return
+                bundle = Path(path_var.get())
+                self.show_progress("Validando retomada", RESTORE_STEPS, 3)
+
+                def operation(callback: Callable[[Event], None]) -> RestorePlan:
+                    return plan_resume(
+                        bundle,
+                        inventory=self.inventory,
+                        callback=callback,
+                    )
+
+                def ready(plan: RestorePlan) -> None:
+                    if dry_run:
+                        self.show_plan(plan)
+                        return
+                    self.go_step(4)
+                    self._worker(
+                        "run-resume",
+                        lambda callback: run_resume(
+                            plan,
+                            password=password_var.get() or None,
+                            callback=callback,
+                        ),
+                        lambda result: self.show_result(
+                            "Restore retomado e concluído",
+                            result,
+                            RESTORE_STEPS,
+                        ),
+                    )
+
+                self._worker("plan-resume", operation, ready)
+
+            ttk.Button(
+                footer,
+                text="Ver plano",
+                style="Secondary.TButton",
+                command=lambda: start(True),
+            ).pack(side="right", padx=(8, 0))
+            ttk.Button(
+                footer,
+                text="Retomar",
+                style="Accent.TButton",
+                command=lambda: start(False),
+            ).pack(side="right")
+
+        self._show("resume", "Retomar restore", build)
+
     def show_restore_options(self) -> None:
         if self.manifest is None or self.bundle_path is None:
             self.show_restore_bundle()
@@ -1144,10 +1237,50 @@ class DistrohopApp:
                     password=password,
                     callback=callback,
                 ),
-                lambda result: self.show_result("Restore concluído", result, RESTORE_STEPS),
+                lambda result: self.show_pending(result)
+                if result.get("pending")
+                else self.show_result("Restore concluído", result, RESTORE_STEPS),
             )
 
         self._worker("plan-restore", operation, ready)
+
+    def show_pending(self, result: Mapping[str, Any]) -> None:
+        self.set_steps(RESTORE_STEPS, 3)
+        self.status_var.set("Aguardando preparação externa")
+
+        def build(page: ttk.Frame) -> None:
+            self._hero(
+                page,
+                "Preparação necessária.",
+                "O perfil ainda não foi alterado. Siga a orientação e retome quando o navegador estiver disponível.",
+            )
+            panel = self._panel(page, 330)
+            panel.pack(fill="x")
+            ttk.Label(
+                panel.body,
+                text="⌁  Restore pausado com segurança",
+                style="Section.Panel.TLabel",
+            ).pack(anchor="w")
+            if result.get("guidance"):
+                ttk.Label(
+                    panel.body,
+                    text="Instruções: {}".format(result["guidance"]),
+                    style="Muted.Panel.TLabel",
+                    wraplength=720,
+                ).pack(anchor="w", pady=(14, 6))
+            ttk.Label(
+                panel.body,
+                text=str(result.get("next") or "Execute resume quando estiver pronto."),
+                style="Panel.TLabel",
+            ).pack(anchor="w", pady=(4, 18))
+            ttk.Button(
+                panel.body,
+                text="Abrir retomada",
+                style="Accent.TButton",
+                command=self.show_resume_bundle,
+            ).pack(anchor="e")
+
+        self._show("pending", "Restore pendente", build)
 
     def show_progress(
         self,

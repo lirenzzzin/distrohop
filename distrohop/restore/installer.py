@@ -27,6 +27,11 @@ QUERY_COMMANDS: Mapping[str, Tuple[str, ...]] = {
     "apt-rpm": ("apt-cache", "show", "{package}"),
 }
 
+ATOMIC_NATIVE_FAMILY: Mapping[str, str] = {
+    "rpm-ostree": "fedora",
+    "transactional-update": "suse",
+}
+
 
 def load_packages(path: Path = DATA_PATH) -> Dict[str, Any]:
     try:
@@ -71,18 +76,45 @@ def plan_install(
     family = str(os_info.get("family") or "")
     manager = str(os_info.get("manager") or "")
     strategy = str(os_info.get("strategy") or "")
-    if strategy == "imperativa":
+    if strategy in ("imperativa", "atômica"):
         query_template = QUERY_COMMANDS.get(manager)
+        if strategy == "atômica":
+            query_template = tuple(os_info.get("query_argv") or ()) or query_template
         install_template = tuple(os_info.get("install_argv") or ())
-        for package in definition.get("native", {}).get(family, []):
+        native_family = ATOMIC_NATIVE_FAMILY.get(family, family)
+        for package in definition.get("native", {}).get(native_family, []):
             if not query_template or not install_template:
                 continue
-            query = tuple(item.format(package=package) for item in query_template)
+            query = tuple(
+                item.format(
+                    package=package,
+                    flatpak_id=definition.get("flatpak") or "",
+                )
+                for item in query_template
+            )
             if not _available(query, runner):
                 continue
-            command = tuple(item.format(package=package) for item in install_template)
-            if os.geteuid() != 0:
+            command = tuple(
+                item.format(
+                    package=package,
+                    flatpak_id=definition.get("flatpak") or "",
+                )
+                for item in install_template
+            )
+            if command and command[0] != "flatpak" and getattr(os, "geteuid", lambda: 1)() != 0:
                 command = ("sudo",) + command
+            return command
+        flatpak_id = definition.get("flatpak")
+        if (
+            strategy == "atômica"
+            and flatpak_id
+            and install_template
+            and any("{flatpak_id}" in item for item in install_template)
+        ):
+            command = tuple(
+                item.format(package="", flatpak_id=flatpak_id)
+                for item in install_template
+            )
             return command
     flatpak_id = definition.get("flatpak")
     if flatpak_id and shutil.which("flatpak"):

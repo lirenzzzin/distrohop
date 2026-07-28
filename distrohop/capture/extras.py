@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import json
+import os
+import re
 import shutil
 import subprocess
+import uuid
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
@@ -20,6 +23,10 @@ DOTFILE_PATHS = (
     ".gitconfig",
     ".config/fish",
     ".config/starship.toml",
+)
+
+NIX_STORE_BINARY = re.compile(
+    r"/nix/store/[0-9a-z]{32}-[^/\"'\s]+/bin/([A-Za-z0-9._+-]+)"
 )
 
 PACKAGE_COMMANDS: Mapping[str, Sequence[Tuple[str, Sequence[str]]]] = {
@@ -70,6 +77,52 @@ def _safe_component(value: str) -> str:
 def copy_resolved(source: Path, destination: Path) -> List[str]:
     """Copy symlink targets as real data so /nix/store links remain portable."""
     return copy_path(source, destination)
+
+
+def sanitize_nix_store_paths(root: Path) -> List[str]:
+    """Make copied text configs portable without touching their source."""
+    warnings: List[str] = []
+    paths = [root] if root.is_file() else sorted(root.rglob("*"))
+    for path in paths:
+        if not path.is_file() or path.is_symlink():
+            continue
+        try:
+            if path.stat().st_size > 2 * 1024 * 1024:
+                continue
+            raw = path.read_bytes()
+        except OSError:
+            continue
+        if b"\0" in raw or b"/nix/store/" not in raw:
+            continue
+        try:
+            text = raw.decode("utf-8")
+        except UnicodeDecodeError:
+            continue
+        sanitized, replacements = NIX_STORE_BINARY.subn(r"\1", text)
+        if not replacements:
+            warnings.append(
+                "{} contém referência /nix/store não sanitizada; revise manualmente".format(
+                    path
+                )
+            )
+            continue
+        temporary = path.with_name(
+            ".{}.{}.partial".format(path.name, uuid.uuid4().hex)
+        )
+        try:
+            temporary.write_text(sanitized, encoding="utf-8")
+            os.chmod(temporary, path.stat().st_mode & 0o777)
+            os.replace(temporary, path)
+        finally:
+            if temporary.exists():
+                temporary.unlink()
+        warnings.append(
+            "{}: {} caminho(s) /nix/store convertido(s) para comando portátil".format(
+                path,
+                replacements,
+            )
+        )
+    return warnings
 
 
 def extras_sources(home: Path, selected: Iterable[str]) -> List[Path]:
@@ -224,7 +277,9 @@ def capture_extras(
         for relative in DOTFILE_PATHS:
             source = home / relative
             if source.exists():
-                warnings.extend(copy_resolved(source, dotfiles / relative))
+                destination_path = dotfiles / relative
+                warnings.extend(copy_resolved(source, destination_path))
+                warnings.extend(sanitize_nix_store_paths(destination_path))
         captured.append("dotfiles")
     package_data: Dict[str, Any] = {}
     if "packages" in requested:

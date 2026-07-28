@@ -16,8 +16,10 @@ from distrohop.core.engine import (
     list_inventory,
     plan_backup,
     plan_restore,
+    plan_resume,
     run_backup,
     run_restore,
+    run_resume,
 )
 from distrohop.core.events import Event
 from distrohop.core.selection import Selection
@@ -94,6 +96,21 @@ def build_parser() -> argparse.ArgumentParser:
         "--dry-run",
         action="store_true",
         help="lista cada alteração sem escrever",
+    )
+    resume = subparsers.add_parser(
+        "resume",
+        help="retoma restore após declaração manual ou reboot atômico",
+    )
+    resume.add_argument("bundle", help="pasta do bundle com estado de retomada")
+    resume.add_argument(
+        "--password-file",
+        metavar="ARQUIVO",
+        help="senha de bundle cifrado em arquivo privado",
+    )
+    resume.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="valida a retomada e lista alterações sem escrever",
     )
     return parser
 
@@ -188,6 +205,17 @@ def render_restore_plan(plan: Any) -> str:
     ]
     if plan.install_command:
         lines.extend(("", "INSTALAÇÃO:", "  {}".format(" ".join(plan.install_command))))
+    if plan.preparation:
+        lines.extend(
+            (
+                "",
+                "PREPARAÇÃO:",
+                "  {} · exige resume: {}".format(
+                    plan.preparation,
+                    "sim" if plan.requires_resume else "não",
+                ),
+            )
+        )
     if plan.warnings:
         lines.extend(("", "AVISOS:"))
         lines.extend("  ! {}".format(warning) for warning in plan.warnings)
@@ -360,6 +388,40 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             print("Erro: {}".format(error), file=sys.stderr)
             return 1
         print("Restore concluído:")
+        if result.get("pending"):
+            print("  aguardando preparação: {}".format(result["preparation"]))
+            if result.get("guidance"):
+                print("  instruções: {}".format(result["guidance"]))
+            print("  próximo passo: {}".format(result["next"]))
+            return 0
+        print("  perfil: {}".format(result["target"]))
+        if result.get("previous_profile"):
+            print("  cópia anterior: {}".format(result["previous_profile"]))
+        return 0
+    if args.command == "resume":
+        inventory = list_inventory(callback=_event_to_stderr)
+        try:
+            plan = plan_resume(
+                Path(args.bundle),
+                inventory=inventory,
+                callback=_event_to_stderr,
+            )
+        except (OSError, RuntimeError, ValueError) as error:
+            parser.error(str(error))
+        if args.dry_run:
+            print(render_restore_plan(plan))
+            return 0
+        password = _read_restore_password(args, parser, plan.encrypted)
+        try:
+            result = run_resume(
+                plan,
+                password=password,
+                callback=_event_to_stderr,
+            )
+        except (OSError, RuntimeError, ValueError) as error:
+            print("Erro: {}".format(error), file=sys.stderr)
+            return 1
+        print("Resume concluído:")
         print("  perfil: {}".format(result["target"]))
         if result.get("previous_profile"):
             print("  cópia anterior: {}".format(result["previous_profile"]))

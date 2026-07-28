@@ -4,7 +4,7 @@ Migração segura de perfis de navegador e credenciais de ferramentas de IA
 entre distribuições Linux. Windows será adicionado numa fase posterior.
 
 O projeto está sendo implementado na ordem definida em `SPEC.md`. As Fases 1 a
-5 fornecem inventário, backup e restore no Linux por CLI e GUI: cópia raw do perfil,
+6 fornecem inventário, backup e restore no Linux por CLI e GUI: cópia raw do perfil,
 cookies/senhas/favoritos neutros, contas de IA, SSH/GPG/dotfiles, inventário de
 pacotes, cifra opcional, gravação verificada em múltiplos destinos e restauração
 atômica same-engine ou conversão Chromium↔Firefox, sempre com cópia de segurança
@@ -62,6 +62,14 @@ interface gráfica. Se Tk faltar, o launcher mostra o comando de instalação
 adequado à distribuição e cai para a CLI. A GUI oferece os mesmos planos e
 travas do motor, com temas claro/escuro, sidebar auto-retrátil e progresso
 animado sem bloquear a janela.
+
+Em NixOS/Guix/blendOS, o app gera orientação declarativa em vez de instalar
+imperativamente. Em rpm-ostree e transactional-update, a instalação cria um
+estado claro de retomada e exige um boot novo antes de aplicar dados.
+`distrohop resume <bundle>` revalida ambiente e checksums antes de continuar.
+Dotfiles apontando para `/nix/store` são desviados para
+`.distrohop-restore`, e caminhos de binários Nix no backup são sanitizados sem
+alterar o arquivo original.
 
 Compatibilidade detalhada: [docs/LINUX-COMPATIBILITY.md](docs/LINUX-COMPATIBILITY.md).
 Direção visual da GUI: [docs/GUI-DESIGN.md](docs/GUI-DESIGN.md).

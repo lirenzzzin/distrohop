@@ -80,6 +80,20 @@ cifra opcional é `openssl enc -aes-256-cbc -pbkdf2 -salt`; a senha segue por
 `stdin`, não aparece em argumentos de processo. Mesmo cifrado,
 `manifest.json` e seus checksums permanecem legíveis.
 
+## Restore declarativo e atômico
+
+- NixOS gera `NIXOS.md` para `flake.nix`, `configuration.nix` ou Home Manager.
+  Só atributos conhecidos entram no bloco; os demais são enviados para busca
+  manual em vez de receber nome inventado.
+- Guix e outros sistemas declarativos recebem `DECLARATIVE.md`; nenhuma
+  instalação é executada pelo app.
+- rpm-ostree e transactional-update usam o pacote nativo da família, registram
+  o boot atual e recusam `resume` até detectar um boot diferente.
+- `.distrohop-resume.json` não guarda senha. Ele contém apenas a seleção,
+  destino e etapa pendente, com permissão `600`.
+- Dotfiles gerenciados por symlink para `/nix/store` nunca são substituídos. A
+  cópia fica ao lado com sufixo `.distrohop-restore`.
+
 ## Limite honesto
 
 “Qualquer distro” significa comportamento excelente para as famílias acima e
@@ -100,6 +114,8 @@ seu contrato, o perfil correspondente deve ser atualizado sem alterar o motor.
 - [XBPS/Void](https://docs.voidlinux.org/xbps/index.html)
 - [Portage/Gentoo](https://wiki.gentoo.org/wiki/Portage)
 - [NixOS](https://nixos.org/manual/nixos/stable/#sec-package-management)
+- [manual do rpm-ostree](https://coreos.github.io/rpm-ostree/administrator-handbook/)
+- [transactional-update SUSE](https://documentation.suse.com/smart/systems-management/html/transactional-updates/index.html)
 - [GNU Guix](https://guix.gnu.org/manual/en/guix.html)
 - [SteamOS](https://help.steampowered.com/pt-br/faqs/view/671A-4453-E8D2-323C),
   [Vanilla OS/ABRoot](https://abroot.vanillaos.org/) e
