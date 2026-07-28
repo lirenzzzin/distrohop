@@ -1,0 +1,14 @@
+#!/bin/sh
+set -eu
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+DISTROHOP_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
+if ! command -v python3 >/dev/null 2>&1; then
+    echo "distrohop requer Python 3.9 ou superior." >&2
+    echo "Instale o pacote Python da sua distribuição e tente novamente." >&2
+    exit 127
+fi
+if ! python3 -c 'import sys; raise SystemExit(sys.version_info < (3, 9))'; then
+    echo "distrohop requer Python 3.9 ou superior; a versão encontrada é $(python3 --version 2>&1)." >&2
+    exit 2
+fi
+PYTHONPATH="$DISTROHOP_ROOT${PYTHONPATH:+:$PYTHONPATH}" exec python3 -m distrohop "$@"

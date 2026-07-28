@@ -1,0 +1,103 @@
+{
+  "linux": [
+    {
+      "id": "brave",
+      "name": "Brave",
+      "engine": "chromium",
+      "binaries": ["brave-browser", "brave"],
+      "native": ["{config}/BraveSoftware/Brave-Browser"],
+      "flatpak": ["{home}/.var/app/com.brave.Browser/config/BraveSoftware/Brave-Browser"],
+      "snap": []
+    },
+    {
+      "id": "chrome",
+      "name": "Google Chrome",
+      "engine": "chromium",
+      "binaries": ["google-chrome-stable", "google-chrome"],
+      "native": ["{chrome_config}/google-chrome"],
+      "flatpak": ["{home}/.var/app/com.google.Chrome/config/google-chrome"],
+      "snap": []
+    },
+    {
+      "id": "chromium",
+      "name": "Chromium",
+      "engine": "chromium",
+      "binaries": ["chromium", "chromium-browser"],
+      "native": ["{chrome_config}/chromium"],
+      "flatpak": ["{home}/.var/app/org.chromium.Chromium/config/chromium"],
+      "snap": ["{home}/snap/chromium/common/chromium"]
+    },
+    {
+      "id": "edge",
+      "name": "Microsoft Edge",
+      "engine": "chromium",
+      "binaries": ["microsoft-edge-stable", "microsoft-edge"],
+      "native": ["{config}/microsoft-edge"],
+      "flatpak": ["{home}/.var/app/com.microsoft.Edge/config/microsoft-edge"],
+      "snap": []
+    },
+    {
+      "id": "vivaldi",
+      "name": "Vivaldi",
+      "engine": "chromium",
+      "binaries": ["vivaldi-stable", "vivaldi"],
+      "native": ["{config}/vivaldi"],
+      "flatpak": ["{home}/.var/app/com.vivaldi.Vivaldi/config/vivaldi"],
+      "snap": []
+    },
+    {
+      "id": "opera",
+      "name": "Opera",
+      "engine": "chromium",
+      "binaries": ["opera"],
+      "native": ["{config}/opera"],
+      "flatpak": ["{home}/.var/app/com.opera.Opera/config/opera"],
+      "snap": ["{home}/snap/opera/common/opera"]
+    },
+    {
+      "id": "firefox",
+      "name": "Firefox",
+      "engine": "firefox",
+      "binaries": ["firefox"],
+      "native": ["{home}/.mozilla/firefox", "{config}/mozilla/firefox"],
+      "flatpak": ["{home}/.var/app/org.mozilla.firefox/.mozilla/firefox"],
+      "snap": ["{home}/snap/firefox/common/.mozilla/firefox"]
+    },
+    {
+      "id": "zen",
+      "name": "Zen",
+      "engine": "firefox",
+      "binaries": ["zen-browser", "zen"],
+      "native": ["{home}/.zen", "{config}/zen"],
+      "flatpak": ["{home}/.var/app/app.zen_browser.zen/.zen"],
+      "snap": []
+    },
+    {
+      "id": "librewolf",
+      "name": "LibreWolf",
+      "engine": "firefox",
+      "binaries": ["librewolf"],
+      "native": ["{home}/.librewolf", "{config}/librewolf"],
+      "flatpak": ["{home}/.var/app/io.gitlab.librewolf-community/.librewolf"],
+      "snap": []
+    },
+    {
+      "id": "floorp",
+      "name": "Floorp",
+      "engine": "firefox",
+      "binaries": ["floorp"],
+      "native": ["{home}/.floorp", "{config}/floorp"],
+      "flatpak": ["{home}/.var/app/one.ablaze.floorp/.floorp"],
+      "snap": []
+    },
+    {
+      "id": "waterfox",
+      "name": "Waterfox",
+      "engine": "firefox",
+      "binaries": ["waterfox"],
+      "native": ["{home}/.waterfox", "{config}/waterfox"],
+      "flatpak": ["{home}/.var/app/net.waterfox.waterfox/.waterfox"],
+      "snap": []
+    }
+  ]
+}
