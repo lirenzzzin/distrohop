@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "distrohop"
+version = "0.1.0"
+description = "Migração local e verificável de perfis entre Linux e Windows"
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [
+  {name = "Distrohop contributors"},
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Environment :: Win32 (MS Windows)",
+  "Operating System :: Microsoft :: Windows",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Topic :: System :: Archiving :: Backup",
+]
+dependencies = []
+
+[project.scripts]
+distrohop = "distrohop.__main__:main"
+
+[project.urls]
+Repository = "https://github.com/lirenzzzin/distrohop"
+
+[tool.setuptools.packages.find]
+include = ["distrohop*"]
+
+[tool.setuptools.package-data]
+distrohop = ["data/*.json"]

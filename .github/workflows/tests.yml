@@ -8,7 +8,7 @@ permissions:
   contents: read
 
 jobs:
-  unit:
+  linux:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -23,3 +23,30 @@ jobs:
         run: python -m unittest discover -v
       - name: Compile
         run: python -m compileall -q distrohop
+      - name: Package install smoke
+        if: matrix.python-version == '3.12'
+        run: |
+          python -m pip install --no-deps .
+          distrohop --cli
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Windows fixtures and crypto
+        run: >-
+          python -m unittest -v
+          tests.test_phase7_aesgcm_windows
+          tests.test_phase7_windows
+          tests.test_platform
+      - name: Compile
+        run: python -m compileall -q distrohop
+      - name: Package install
+        run: python -m pip install --no-deps .
+      - name: Bootstrapped CLI import smoke
+        shell: pwsh
+        run: |
+          $env:DISTROHOP_BOOTSTRAPPED = "1"
+          distrohop --cli

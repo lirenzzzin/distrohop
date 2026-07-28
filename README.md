@@ -3,7 +3,7 @@
 Migração segura de perfis de navegador e credenciais de ferramentas de IA
 entre distribuições Linux e Windows.
 
-As Fases 1 a 7 fornecem inventário, backup e restore por CLI e GUI: cópia raw do perfil,
+As oito fases fornecem inventário, backup e restore por CLI e GUI: cópia raw do perfil,
 cookies/senhas/favoritos neutros, contas de IA, SSH/GPG/dotfiles, inventário de
 pacotes, cifra opcional, gravação verificada em múltiplos destinos e restauração
 atômica same-engine ou conversão Chromium↔Firefox, sempre com cópia de segurança
@@ -24,6 +24,8 @@ Requisitos atuais:
 Uso a partir do código-fonte:
 
 ```sh
+git clone https://github.com/lirenzzzin/distrohop.git
+cd distrohop
 ./bin/distrohop list
 ./bin/distrohop list --json
 ./bin/distrohop backup --dry-run
@@ -35,6 +37,11 @@ Uso a partir do código-fonte:
   --browser brave --target-browser zen --dry-run
 python3 -m distrohop list
 ```
+
+Não há dependência Python externa. Quem preferir um comando instalado pode usar
+`python -m pip install --no-deps .`; isso só empacota o mesmo código e os JSONs
+de dados. Em live USB ou ambiente minimalista, o launcher acima funciona sem
+instalação.
 
 No Windows, extraia a pasta e abra `distrohop.bat`. O launcher encontra Python
 3.9+, executa primeiro o portão transparente do antivírus e abre a GUI. Use

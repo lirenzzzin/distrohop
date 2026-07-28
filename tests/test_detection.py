@@ -27,7 +27,11 @@ class DetectionTests(unittest.TestCase):
             (home / ".codex-conta2").mkdir()
             (home / ".codex2").mkdir()
 
-            detected = browsers.detect_linux(home, which=lambda _command: None)
+            detected = browsers.detect_linux(
+                home,
+                environ={},
+                which=lambda _command: None,
+            )
             self.assertEqual([(item["name"], len(item["profiles"])) for item in detected], [("Brave", 1), ("Zen", 1)])
             self.assertEqual(detected[0]["profiles"][0]["name"], "Trabalho")
             self.assertEqual([item["slot"] for item in ai.detect(home)], ["codex", "codex-conta2", "codex2"])

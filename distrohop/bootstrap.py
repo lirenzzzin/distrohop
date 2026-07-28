@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
 import os
 import subprocess
@@ -185,17 +186,31 @@ def _record(app_directory: Path, action: str, detail: str = "") -> None:
         action,
         detail.replace("\n", " "),
     )
-    path = app_directory / ".distrohop-bootstrap.log"
+    path = _storage_directory(app_directory) / ".distrohop-bootstrap.log"
+    path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as stream:
         stream.write(line)
 
 
 def _state_path(app_directory: Path) -> Path:
-    return app_directory / ".distrohop-bootstrap.json"
+    return _storage_directory(app_directory) / ".distrohop-bootstrap.json"
+
+
+def _storage_directory(app_directory: Path) -> Path:
+    if os.access(str(app_directory), os.W_OK):
+        return app_directory
+    local = os.environ.get("LOCALAPPDATA")
+    if not local:
+        return app_directory
+    identity = hashlib.sha256(
+        str(app_directory.resolve()).casefold().encode("utf-8")
+    ).hexdigest()[:12]
+    return Path(local) / "Distrohop" / identity
 
 
 def _write_state(app_directory: Path, state: Mapping[str, Any]) -> None:
     path = _state_path(app_directory)
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         json.dumps(dict(state), ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
@@ -327,7 +342,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     if current_platform() != "windows":
         return application.main(arguments)
-    app_directory = Path(__file__).resolve().parent.parent
+    package_directory = Path(__file__).resolve().parent
+    source_root = package_directory.parent
+    app_directory = (
+        source_root
+        if (source_root / "distrohop.bat").is_file()
+        else package_directory
+    )
     if "--reset-bootstrap" in arguments:
         arguments.remove("--reset-bootstrap")
         try:

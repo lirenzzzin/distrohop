@@ -273,7 +273,10 @@ def decrypt_archive(
                     resolved = (destination / member.name).resolve()
                     if resolved != root and root not in resolved.parents:
                         raise CryptoError("caminho inseguro no arquivo cifrado")
-                tar.extractall(destination)
+                extraction_options = (
+                    {"filter": "data"} if hasattr(tarfile, "data_filter") else {}
+                )
+                tar.extractall(destination, **extraction_options)
             for path in [destination, *destination.rglob("*")]:
                 os.chmod(path, 0o700 if path.is_dir() else 0o600)
         except Exception:
