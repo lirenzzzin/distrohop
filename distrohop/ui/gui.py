@@ -7,6 +7,7 @@ import queue
 import threading
 import time
 import traceback
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 
@@ -29,6 +30,7 @@ from distrohop.core.events import Event
 from distrohop.core.selection import Selection
 from distrohop.detect.browsers import load_definitions
 from distrohop.vault.bundle import read_manifest, verify_bundle
+from distrohop.vault import partition
 
 
 LIGHT = {
@@ -883,6 +885,13 @@ class DistrohopApp:
             buttons.pack(fill="x")
             ttk.Button(buttons, text="+ Adicionar pasta", style="Secondary.TButton", command=add_target).pack(side="left")
             ttk.Button(buttons, text="Remover", style="Ghost.TButton", command=remove_target).pack(side="left", padx=8)
+            if (self.inventory or {}).get("platform") == "linux":
+                ttk.Button(
+                    buttons,
+                    text="Partição-cofre…",
+                    style="Ghost.TButton",
+                    command=self.show_vault_dialog,
+                ).pack(side="right")
             ttk.Separator(body).pack(fill="x", pady=18)
             ttk.Checkbutton(
                 body,
@@ -929,6 +938,169 @@ class DistrohopApp:
             ).pack(side="right")
 
         self._show("backup-destination", "Destino e proteção", build)
+
+    def show_vault_dialog(self) -> None:
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Distrohop · Partição-cofre")
+        dialog.geometry("720x610")
+        dialog.minsize(680, 580)
+        dialog.transient(self.root)
+        dialog.grab_set()
+        dialog.configure(background=self.palette["bg"])
+        body = ttk.Frame(dialog, style="Base.TFrame", padding=28)
+        body.pack(fill="both", expand=True)
+        ttk.Label(
+            body,
+            text="⚠  Uma cópia dentro do mesmo disco não é invencível.",
+            style="Header.TLabel",
+        ).pack(anchor="w")
+        ttk.Label(
+            body,
+            text=partition.WARNING,
+            style="TLabel",
+            foreground=self.palette["danger"],
+            wraplength=650,
+            justify="left",
+        ).pack(anchor="w", pady=(10, 20))
+        panel = ttk.Frame(body, style="Panel.TFrame", padding=22)
+        panel.pack(fill="both", expand=True)
+        disks = [
+            str(item.get("path"))
+            for item in (self.inventory or {}).get("disks", [])
+            if item.get("path") and item.get("system") and not item.get("mountpoints")
+        ]
+        disk_var = tk.StringVar(value=disks[0] if disks else "")
+        size_var = tk.StringVar(value="16")
+        bundle_var = tk.StringVar()
+        phrase_var = tk.StringVar()
+        ttk.Label(panel, text="Disco GPT", style="Muted.Panel.TLabel").pack(anchor="w")
+        ttk.Combobox(
+            panel,
+            textvariable=disk_var,
+            values=disks,
+        ).pack(fill="x", pady=(5, 12))
+        ttk.Label(panel, text="Tamanho em GiB", style="Muted.Panel.TLabel").pack(anchor="w")
+        ttk.Entry(panel, textvariable=size_var).pack(fill="x", pady=(5, 12))
+        ttk.Label(
+            panel,
+            text="Segunda cópia já verificada",
+            style="Muted.Panel.TLabel",
+        ).pack(anchor="w")
+        bundle_row = ttk.Frame(panel, style="Panel.TFrame")
+        bundle_row.pack(fill="x", pady=(5, 12))
+        ttk.Entry(bundle_row, textvariable=bundle_var).pack(
+            side="left",
+            fill="x",
+            expand=True,
+        )
+        ttk.Button(
+            bundle_row,
+            text="Procurar",
+            style="Secondary.TButton",
+            command=lambda: bundle_var.set(
+                filedialog.askdirectory(
+                    title="Escolha a segunda cópia Distrohop",
+                    parent=dialog,
+                )
+                or bundle_var.get()
+            ),
+        ).pack(side="left", padx=(8, 0))
+        ttk.Label(
+            panel,
+            text="Digite exatamente: {}".format(partition.CONFIRMATION_PHRASE),
+            style="Muted.Panel.TLabel",
+            wraplength=600,
+        ).pack(anchor="w")
+        ttk.Entry(panel, textvariable=phrase_var).pack(fill="x", pady=(5, 16))
+        footer = ttk.Frame(panel, style="Panel.TFrame")
+        footer.pack(fill="x")
+        ttk.Button(
+            footer,
+            text="Cancelar",
+            style="Secondary.TButton",
+            command=dialog.destroy,
+        ).pack(side="left")
+
+        def submit(execute: bool) -> None:
+            if phrase_var.get() != partition.CONFIRMATION_PHRASE:
+                messagebox.showwarning(
+                    "Distrohop",
+                    "A confirmação precisa ser digitada por extenso e sem alterações.",
+                    parent=dialog,
+                )
+                return
+            try:
+                size = Decimal(size_var.get())
+                if not size.is_finite() or size <= 0:
+                    raise InvalidOperation
+                size_bytes = int(size * (1024**3))
+            except (InvalidOperation, ValueError):
+                messagebox.showwarning(
+                    "Distrohop",
+                    "Informe um tamanho positivo em GiB.",
+                    parent=dialog,
+                )
+                return
+            if not disk_var.get() or not bundle_var.get():
+                messagebox.showwarning(
+                    "Distrohop",
+                    "Informe o disco e a segunda cópia íntegra.",
+                    parent=dialog,
+                )
+                return
+            confirmation = phrase_var.get()
+            dialog.destroy()
+            self.show_progress("Revalidando partição-cofre", BACKUP_STEPS, 2)
+
+            def ready(plan: partition.VaultPlan) -> None:
+                if not execute:
+                    self.show_vault_plan(plan)
+                    return
+                if getattr(os, "geteuid", lambda: 1)() != 0:
+                    self.show_vault_plan(plan)
+                    messagebox.showwarning(
+                        "Distrohop",
+                        "A GUI não eleva o aplicativo inteiro. Revise o plano e "
+                        "execute `sudo distrohop vault create ... --execute` no terminal.",
+                    )
+                    return
+                self._worker(
+                    "vault-create",
+                    lambda _callback: partition.create_vault(
+                        plan,
+                        confirmation=confirmation,
+                    ),
+                    lambda result: self.show_result(
+                        "Partição-cofre criada e verificada",
+                        result,
+                        BACKUP_STEPS,
+                    ),
+                )
+
+            self._worker(
+                "vault-plan",
+                lambda _callback: partition.plan_vault(
+                    Path(disk_var.get()),
+                    size_bytes=size_bytes,
+                    backup_bundle=Path(bundle_var.get()),
+                    confirmation=confirmation,
+                    platform_name=str((self.inventory or {}).get("platform") or ""),
+                ),
+                ready,
+            )
+
+        ttk.Button(
+            footer,
+            text="Criar (root)",
+            style="Accent.TButton",
+            command=lambda: submit(True),
+        ).pack(side="right")
+        ttk.Button(
+            footer,
+            text="Ver plano",
+            style="Secondary.TButton",
+            command=lambda: submit(False),
+        ).pack(side="right", padx=(0, 8))
 
     def _plan_backup_gui(self, *, dry_run: bool, encrypted: bool) -> None:
         if self.inventory is None or self._backup_selection is None:
@@ -1355,6 +1527,38 @@ class DistrohopApp:
             ).pack(anchor="e", pady=(12, 0))
 
         self._show("plan", "Dry-run", build)
+
+    def show_vault_plan(self, plan: partition.VaultPlan) -> None:
+        self.set_steps(BACKUP_STEPS, 2)
+
+        def build(page: ttk.Frame) -> None:
+            self._hero(
+                page,
+                "Plano do cofre — somente leitura",
+                "Nenhum setor foi alterado. A execução revalida tudo outra vez.",
+            )
+            panel = self._panel(page, 450)
+            panel.pack(fill="both", expand=True)
+            text = tk.Text(
+                panel.body,
+                background=self.palette["input"],
+                foreground=self.palette["text"],
+                borderwidth=0,
+                padx=14,
+                pady=12,
+                wrap="word",
+            )
+            text.pack(fill="both", expand=True)
+            text.insert("end", partition.render_plan(plan))
+            text.configure(state="disabled")
+            ttk.Button(
+                panel.body,
+                text="Voltar aos destinos",
+                style="Secondary.TButton",
+                command=self.show_backup_destination,
+            ).pack(anchor="e", pady=(12, 0))
+
+        self._show("vault-plan", "Partição-cofre", build)
 
     def show_result(
         self,

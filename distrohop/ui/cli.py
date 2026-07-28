@@ -7,6 +7,7 @@ import getpass
 import json
 import stat
 import sys
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any, Mapping, Optional, Sequence
 
@@ -23,6 +24,8 @@ from distrohop.core.engine import (
 )
 from distrohop.core.events import Event
 from distrohop.core.selection import Selection
+from distrohop.platform_ import current_platform
+from distrohop.vault import partition
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -118,6 +121,41 @@ def build_parser() -> argparse.ArgumentParser:
         "--dry-run",
         action="store_true",
         help="valida a retomada e lista alterações sem escrever",
+    )
+    vault = subparsers.add_parser(
+        "vault",
+        help="planeja ou cria a partição-cofre Linux com travas estritas",
+    )
+    vault_subcommands = vault.add_subparsers(dest="vault_command", required=True)
+    vault_create = vault_subcommands.add_parser(
+        "create",
+        help="cria o cofre; sem --execute faz somente dry-run",
+    )
+    vault_create.add_argument("--disk", required=True, help="disco GPT, por exemplo /dev/sda")
+    vault_create.add_argument(
+        "--size-gib",
+        required=True,
+        help="tamanho do cofre em GiB",
+    )
+    vault_create.add_argument(
+        "--backup",
+        required=True,
+        help="segunda cópia Distrohop já íntegra e em outro destino",
+    )
+    vault_create.add_argument(
+        "--confirm",
+        help="frase exata; se omitida, é solicitada no terminal",
+    )
+    mode = vault_create.add_mutually_exclusive_group()
+    mode.add_argument(
+        "--execute",
+        action="store_true",
+        help="efetiva o plano; exige root",
+    )
+    mode.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="explicita o modo padrão somente leitura",
     )
     return parser
 
@@ -325,6 +363,37 @@ def _read_restore_password(
     return password
 
 
+def _vault_confirmation(
+    args: argparse.Namespace,
+    parser: argparse.ArgumentParser,
+) -> str:
+    print("⚠ {}".format(partition.WARNING), file=sys.stderr)
+    print(
+        "Confirme digitando exatamente: {}".format(
+            partition.CONFIRMATION_PHRASE
+        ),
+        file=sys.stderr,
+    )
+    if args.confirm is not None:
+        return str(args.confirm)
+    try:
+        return input("> ")
+    except (EOFError, KeyboardInterrupt):
+        parser.error("confirmação não recebida; use --confirm")
+        raise AssertionError("argparse encerrou")
+
+
+def _gib_bytes(value: str, parser: argparse.ArgumentParser) -> int:
+    try:
+        amount = Decimal(value)
+    except InvalidOperation:
+        parser.error("--size-gib precisa ser um número")
+        raise AssertionError("argparse encerrou")
+    if not amount.is_finite() or amount <= 0:
+        parser.error("--size-gib precisa ser positivo")
+    return int(amount * (1024**3))
+
+
 def main(argv: Optional[Sequence[str]] = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -432,6 +501,33 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         print("  perfil: {}".format(result["target"]))
         if result.get("previous_profile"):
             print("  cópia anterior: {}".format(result["previous_profile"]))
+        return 0
+    if args.command == "vault" and args.vault_command == "create":
+        confirmation = _vault_confirmation(args, parser)
+        try:
+            plan = partition.plan_vault(
+                Path(args.disk),
+                size_bytes=_gib_bytes(args.size_gib, parser),
+                backup_bundle=Path(args.backup),
+                confirmation=confirmation,
+                platform_name=current_platform(),
+            )
+        except (OSError, RuntimeError, ValueError) as error:
+            parser.error(str(error))
+        if not args.execute:
+            print(partition.render_plan(plan))
+            return 0
+        try:
+            result = partition.create_vault(
+                plan,
+                confirmation=confirmation,
+            )
+        except (OSError, RuntimeError, ValueError) as error:
+            print("Erro: {}".format(error), file=sys.stderr)
+            return 1
+        print("Partição-cofre criada e verificada:")
+        for key, value in result.items():
+            print("  {}: {}".format(key, value))
         return 0
     else:
         parser.print_help()

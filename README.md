@@ -79,6 +79,15 @@ Dotfiles apontando para `/nix/store` são desviados para
 `.distrohop-restore`, e caminhos de binários Nix no backup são sanitizados sem
 alterar o arquivo original.
 
+No Linux, `distrohop vault create` planeja a partição-cofre em modo dry-run por
+padrão. A execução exige `--execute`, root, confirmação digitada por extenso e
+uma segunda cópia íntegra em outro disco. O motor prefere espaço GPT livre; só
+encolhe a última partição quando ela é Btrfs single-device, tem 20% de margem e
+não há balance, scrub ou snapshot/send em andamento. Ext4/XFS são recusados com
+orientação para live USB/GParted. O cofre nunca altera bootloader, `fstab` ou a
+ordem das partições.
+
 Compatibilidade detalhada: [docs/LINUX-COMPATIBILITY.md](docs/LINUX-COMPATIBILITY.md).
 Comportamento no Windows: [docs/WINDOWS.md](docs/WINDOWS.md).
+Partição-cofre e suas travas: [docs/VAULT.md](docs/VAULT.md).
 Direção visual da GUI: [docs/GUI-DESIGN.md](docs/GUI-DESIGN.md).
