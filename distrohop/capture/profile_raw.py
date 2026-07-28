@@ -19,6 +19,10 @@ TRANSIENT_NAMES = {
     "lock",
 }
 
+_SQLITE_BUSY = 5
+_SQLITE_LOCKED = 6
+_SQLITE_DONE = 101
+
 
 class SQLiteSnapshotBusy(sqlite3.OperationalError):
     """Raised when SQLite cannot produce a bounded, consistent snapshot."""
@@ -120,10 +124,10 @@ def sqlite_snapshot(
     deadline = time.monotonic() + timeout_seconds
 
     def progress(status: int, _remaining: int, _total: int) -> None:
-        if status != sqlite3.SQLITE_DONE and time.monotonic() >= deadline:
+        if status != _SQLITE_DONE and time.monotonic() >= deadline:
             state = (
                 "ocupado"
-                if status in (sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED)
+                if status in (_SQLITE_BUSY, _SQLITE_LOCKED)
                 else "mudando continuamente"
             )
             raise SQLiteSnapshotBusy(
