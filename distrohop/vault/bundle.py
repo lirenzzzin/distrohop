@@ -21,8 +21,12 @@ The payload may contain passwords, cookies, SSH/GPG keys and AI tokens.
 Keep this directory private. Verify checksums before restore.
 
 Para abrir manualmente um bundle cifrado:
-  openssl enc -aes-256-cbc -d -pbkdf2 -in bundle.tar.enc -out bundle.tar -pass stdin
-  mkdir payload && tar -xf bundle.tar -C payload
+  Se bundle.tar.enc começa com "Salted__", use:
+    openssl enc -aes-256-cbc -d -pbkdf2 -in bundle.tar.enc -out bundle.tar -pass stdin
+    mkdir payload && tar -xf bundle.tar -C payload
+  Se começa com "DHG1", é o contêiner AES-GCM autenticado do Windows:
+    python -m distrohop restore <esta-pasta> ...
+  O formato DHG1 é documentado em docs/WINDOWS.md e recusa qualquer adulteração.
 
 Sem bundle.tar.enc, os diretórios browsers/, ai/ e system/ já são o payload.
 """
@@ -57,6 +61,7 @@ def assemble_bundle(
     metadata: Mapping[str, Any],
     encrypted: bool,
     password: Optional[str] = None,
+    system: Optional[str] = None,
 ) -> Dict[str, Any]:
     if destination.exists():
         raise FileExistsError(str(destination))
@@ -68,7 +73,17 @@ def assemble_bundle(
         if encrypted:
             plaintext_files = _payload_entries(payload, stored=False)
             encrypted_path = destination / "bundle.tar.enc"
-            encrypt_tree(payload, encrypted_path, password or "")
+            encrypt_tree(
+                payload,
+                encrypted_path,
+                password or "",
+                system=system,
+            )
+            manifest["crypto"] = (
+                "aes-256-gcm-pbkdf2-chunked-v1"
+                if (system or "").casefold() == "windows"
+                else "openssl-aes-256-cbc-pbkdf2"
+            )
             files = plaintext_files
             files["bundle.tar.enc"] = _entry(encrypted_path, stored=True)
         else:

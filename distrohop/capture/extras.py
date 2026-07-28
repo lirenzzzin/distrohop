@@ -61,6 +61,10 @@ PACKAGE_COMMANDS: Mapping[str, Sequence[Tuple[str, Sequence[str]]]] = {
     "abroot": (("status", ("abroot", "status")),),
     "akshara": (("status", ("akshara", "status")),),
     "flatpak": (),
+    "winget": (
+        ("installed", ("winget", "list", "--accept-source-agreements")),
+    ),
+    "choco": (("installed", ("choco", "list")),),
 }
 
 UNIVERSAL_COMMANDS: Sequence[Tuple[str, Sequence[str]]] = (

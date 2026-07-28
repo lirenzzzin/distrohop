@@ -17,6 +17,7 @@ from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 from urllib.parse import urlsplit
 
 from distrohop.capture.chromium_linux import encrypt_chromium_value
+from distrohop.capture import chromium_win
 
 
 CHROMIUM_EPOCH_OFFSET_SECONDS = 11_644_473_600
@@ -401,6 +402,8 @@ def _chromium_cookie_values(
     record: Mapping[str, Any],
     *,
     modern: bool,
+    target_platform: str = "linux",
+    master_key: Optional[bytes] = None,
 ) -> Dict[str, Any]:
     source = str(record.get("source_engine") or "")
     if source == "firefox" or "expiry" in record:
@@ -415,11 +418,23 @@ def _chromium_cookie_values(
         updated = int(record.get("last_update_utc") or accessed)
     host = str(record.get("host") or "")
     value = str(record.get("value") or "")
-    encrypted = encrypt_chromium_value(
-        value,
-        host_key=host,
-        modern_cookie=modern,
-    )
+    if target_platform == "windows":
+        if master_key is None:
+            raise chromium_win.WindowsCryptoError(
+                "chave do perfil Chromium Windows não está disponível"
+            )
+        encrypted = chromium_win.encrypt_chromium_value(
+            value,
+            master_key=master_key,
+            host_key=host,
+            modern_cookie=modern,
+        )
+    else:
+        encrypted = encrypt_chromium_value(
+            value,
+            host_key=host,
+            modern_cookie=modern,
+        )
     return {
         "creation_utc": creation,
         "host_key": host,
@@ -486,6 +501,8 @@ def _chromium_modern_cookie_format(connection: sqlite3.Connection) -> bool:
 def _apply_chromium_cookies(
     profile: Path,
     records: Iterable[Mapping[str, Any]],
+    *,
+    target_platform: str = "linux",
 ) -> int:
     database = (
         profile / "Network" / "Cookies"
@@ -493,12 +510,20 @@ def _apply_chromium_cookies(
         else profile / "Cookies"
     )
     database.parent.mkdir(parents=True, exist_ok=True)
+    master_key: Optional[bytes] = None
+    if target_platform == "windows":
+        master_key = chromium_win.load_master_key(profile.parent / "Local State")
     with closing(sqlite3.connect(str(database))) as connection:
         _ensure_chromium_cookies(connection)
         modern = _chromium_modern_cookie_format(connection)
         count = 0
         for record in records:
-            values = _chromium_cookie_values(record, modern=modern)
+            values = _chromium_cookie_values(
+                record,
+                modern=modern,
+                target_platform=target_platform,
+                master_key=master_key,
+            )
             connection.execute(
                 "DELETE FROM cookies WHERE host_key=? AND name=? AND path=?",
                 (values["host_key"], values["name"], values["path"]),
@@ -590,6 +615,7 @@ def apply_neutral_profile(
     source_engine: str,
     target_engine: str,
     backup_name: Optional[str] = None,
+    target_platform: str = "linux",
 ) -> Dict[str, Any]:
     if not neutral.is_dir():
         raise FileNotFoundError("dados neutros não encontrados: {}".format(neutral))
@@ -631,7 +657,11 @@ def apply_neutral_profile(
             cookie_count = _apply_firefox_cookies(staging, cookies)
             bookmark_count = _apply_firefox_bookmarks(staging, bookmarks)
         else:
-            cookie_count = _apply_chromium_cookies(staging, cookies)
+            cookie_count = _apply_chromium_cookies(
+                staging,
+                cookies,
+                target_platform=target_platform,
+            )
             bookmark_count = _apply_chromium_bookmarks(staging, bookmarks)
         if _copy_manual_logins(neutral, staging):
             warnings.append(

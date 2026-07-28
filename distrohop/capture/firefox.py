@@ -6,6 +6,7 @@ import base64
 import ctypes
 import ctypes.util
 import json
+import os
 import sqlite3
 import tempfile
 from pathlib import Path
@@ -29,19 +30,41 @@ class SECItem(ctypes.Structure):
 
 class NSSDecryptor:
     def __init__(self, profile: Path) -> None:
+        windows_roots = (
+            Path(os.environ.get(variable, "")) / relative
+            for variable, relative in (
+                ("PROGRAMFILES", "Mozilla Firefox"),
+                ("PROGRAMFILES(X86)", "Mozilla Firefox"),
+                ("PROGRAMFILES", "Zen Browser"),
+                ("LOCALAPPDATA", "Programs/Zen Browser"),
+            )
+            if os.environ.get(variable)
+        )
         candidates = [
             ctypes.util.find_library("nss3"),
+            "nss3.dll",
             "libnss3.so",
             "/usr/lib/libnss3.so",
             "/usr/lib64/libnss3.so",
             "/lib/libnss3.so",
             "/lib64/libnss3.so",
+            *(str(root / "nss3.dll") for root in windows_roots),
         ]
         self._nss = None
+        self._dll_directories = []
         for library in candidates:
             if not library:
                 continue
             try:
+                candidate = Path(str(library))
+                if (
+                    os.name == "nt"
+                    and candidate.is_absolute()
+                    and hasattr(os, "add_dll_directory")
+                ):
+                    self._dll_directories.append(
+                        os.add_dll_directory(str(candidate.parent))
+                    )
                 self._nss = ctypes.CDLL(library)
                 break
             except OSError:
@@ -72,6 +95,9 @@ class NSSDecryptor:
         if getattr(self, "_open", False):
             self._nss.NSS_Shutdown()
             self._open = False
+        for directory in getattr(self, "_dll_directories", ()):
+            directory.close()
+        self._dll_directories = []
 
     def decrypt(self, encoded: str) -> str:
         encrypted = base64.b64decode(encoded)

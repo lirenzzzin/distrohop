@@ -1,10 +1,9 @@
 # distrohop
 
 Migração segura de perfis de navegador e credenciais de ferramentas de IA
-entre distribuições Linux. Windows será adicionado numa fase posterior.
+entre distribuições Linux e Windows.
 
-O projeto está sendo implementado na ordem definida em `SPEC.md`. As Fases 1 a
-6 fornecem inventário, backup e restore no Linux por CLI e GUI: cópia raw do perfil,
+As Fases 1 a 7 fornecem inventário, backup e restore por CLI e GUI: cópia raw do perfil,
 cookies/senhas/favoritos neutros, contas de IA, SSH/GPG/dotfiles, inventário de
 pacotes, cifra opcional, gravação verificada em múltiplos destinos e restauração
 atômica same-engine ou conversão Chromium↔Firefox, sempre com cópia de segurança
@@ -14,8 +13,10 @@ Requisitos atuais:
 
 - Python 3.9 ou superior;
 - somente biblioteca padrão;
-- `lsblk` no Linux para inventário de discos.
-- `openssl` para cifra do bundle e para decriptar dados Chromium;
+- Linux: `lsblk` para inventário de discos e `openssl` para cifra do bundle e
+  dados Chromium;
+- Windows: Python oficial com Tk, PowerShell, DPAPI/Crypt32 e WinGet (Chocolatey
+  é fallback);
 - `libnss3` para senhas Firefox/Zen (sem ela, o restante continua com aviso);
 - `secret-tool` ou `kwallet-query` para dados Chromium `v11` (sem acesso ao
   keyring, a cópia raw continua e as credenciais afetadas são avisadas).
@@ -35,12 +36,19 @@ Uso a partir do código-fonte:
 python3 -m distrohop list
 ```
 
+No Windows, extraia a pasta e abra `distrohop.bat`. O launcher encontra Python
+3.9+, executa primeiro o portão transparente do antivírus e abre a GUI. Use
+`distrohop.bat --cli list` para o modo texto. O app nunca desativa o Defender:
+só pode pedir, após consentimento explícito e UAC, a exclusão exata da própria
+pasta.
+
 `backup --dry-run` não cria pastas nem arquivos e enumera cada origem e saída.
 Backup real nunca sobrescreve um bundle existente. Sem `--encrypt`, todo o
 conteúdo fica legível para quem acessar o disco e recebe permissões `600/700`.
 Com `--encrypt`, a senha é solicitada sem eco ou lida por `--password-file`;
 ela nunca é aceita como argumento de linha de comando. `manifest.json` continua
-em claro por projeto.
+em claro por projeto. No Linux, a cifra usa OpenSSL AES-256-CBC/PBKDF2; no
+Windows, um contêiner AES-256-GCM/PBKDF2 autenticado e em blocos.
 
 `restore --dry-run` enumera arquivo por arquivo sem alterar o perfil. O restore
 recusa continuar enquanto o navegador estiver aberto, verifica todos os
@@ -72,4 +80,5 @@ Dotfiles apontando para `/nix/store` são desviados para
 alterar o arquivo original.
 
 Compatibilidade detalhada: [docs/LINUX-COMPATIBILITY.md](docs/LINUX-COMPATIBILITY.md).
+Comportamento no Windows: [docs/WINDOWS.md](docs/WINDOWS.md).
 Direção visual da GUI: [docs/GUI-DESIGN.md](docs/GUI-DESIGN.md).

@@ -21,6 +21,35 @@ WINDOWS_LOCATIONS = {
     "zen": ("firefox", "roaming", "zen"),
 }
 
+WINDOWS_BINARIES = {
+    "brave": (
+        "brave.exe",
+        ("PROGRAMFILES", "BraveSoftware/Brave-Browser/Application/brave.exe"),
+        ("LOCALAPPDATA", "BraveSoftware/Brave-Browser/Application/brave.exe"),
+    ),
+    "chrome": (
+        "chrome.exe",
+        ("PROGRAMFILES", "Google/Chrome/Application/chrome.exe"),
+        ("PROGRAMFILES(X86)", "Google/Chrome/Application/chrome.exe"),
+        ("LOCALAPPDATA", "Google/Chrome/Application/chrome.exe"),
+    ),
+    "edge": (
+        "msedge.exe",
+        ("PROGRAMFILES(X86)", "Microsoft/Edge/Application/msedge.exe"),
+        ("PROGRAMFILES", "Microsoft/Edge/Application/msedge.exe"),
+    ),
+    "firefox": (
+        "firefox.exe",
+        ("PROGRAMFILES", "Mozilla Firefox/firefox.exe"),
+        ("PROGRAMFILES(X86)", "Mozilla Firefox/firefox.exe"),
+    ),
+    "zen": (
+        "zen.exe",
+        ("PROGRAMFILES", "Zen Browser/zen.exe"),
+        ("LOCALAPPDATA", "Programs/Zen Browser/zen.exe"),
+    ),
+}
+
 
 def load_definitions(path: Path = DATA_PATH) -> List[Dict[str, Any]]:
     try:
@@ -181,7 +210,10 @@ def detect_linux(
     return results
 
 
-def detect_windows(environ: Mapping[str, str]) -> List[Dict[str, object]]:
+def detect_windows(
+    environ: Mapping[str, str],
+    which: Callable[[str], Optional[str]] = shutil.which,
+) -> List[Dict[str, object]]:
     bases = {
         "local": Path(environ.get("LOCALAPPDATA", "")),
         "roaming": Path(environ.get("APPDATA", "")),
@@ -191,5 +223,18 @@ def detect_windows(environ: Mapping[str, str]) -> List[Dict[str, object]]:
         root = bases[base_name] / Path(relative.replace("/", os.sep))
         if root.is_dir():
             definition = {"id": name, "name": name.title(), "engine": engine}
-            results.append(_record(definition, "native", root))
+            binary: Optional[str] = None
+            candidates = WINDOWS_BINARIES.get(name, ())
+            if candidates:
+                binary = which(str(candidates[0]))
+                if not binary:
+                    for variable, executable in candidates[1:]:
+                        base = environ.get(variable, "")
+                        candidate = Path(base) / Path(
+                            executable.replace("/", os.sep)
+                        )
+                        if base and candidate.is_file():
+                            binary = str(candidate)
+                            break
+            results.append(_record(definition, "native", root, binary))
     return results

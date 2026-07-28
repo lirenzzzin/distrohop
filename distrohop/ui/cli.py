@@ -31,7 +31,10 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command")
     list_parser = subparsers.add_parser("list", help="lista plataforma, perfis, contas e destinos")
     list_parser.add_argument("--json", action="store_true", help="emite JSON para automação")
-    backup = subparsers.add_parser("backup", help="captura dados Linux e gera bundle verificado")
+    backup = subparsers.add_parser(
+        "backup",
+        help="captura dados e gera bundle verificado",
+    )
     backup.add_argument(
         "--target",
         dest="targets",
@@ -40,7 +43,11 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="PASTA",
         help="destino do bundle; pode ser repetido",
     )
-    backup.add_argument("--encrypt", action="store_true", help="cifra o payload com OpenSSL")
+    backup.add_argument(
+        "--encrypt",
+        action="store_true",
+        help="cifra o payload (OpenSSL no Linux; AES-GCM no Windows)",
+    )
     backup.add_argument(
         "--password-file",
         metavar="ARQUIVO",
@@ -72,7 +79,7 @@ def build_parser() -> argparse.ArgumentParser:
     backup.add_argument("--no-ai", action="store_true", help="não captura contas de IA")
     backup.add_argument("--no-extras", action="store_true", help="não captura dados extras")
     restore = subparsers.add_parser(
-        "restore", help="restaura um perfil Linux a partir de um bundle"
+        "restore", help="restaura um perfil a partir de um bundle"
     )
     restore.add_argument("bundle", help="pasta do bundle Distrohop")
     restore.add_argument("--browser", help="ID do navegador de origem")

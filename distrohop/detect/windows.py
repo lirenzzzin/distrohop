@@ -17,10 +17,17 @@ def detect(
     local = Path(env.get("LOCALAPPDATA", ""))
     roaming = Path(env.get("APPDATA", ""))
     return {
+        "id": "windows",
         "name": f"Windows {platform.release()}",
         "version": platform.version(),
         "manager": "winget" if which("winget") else ("choco" if which("choco") else None),
         "strategy": "imperativa",
+        "family": "windows",
+        "family_label": "Windows",
+        "manager_available": bool(which("winget") or which("choco")),
+        "tk_package": None,
+        "requires_reboot": False,
+        "manual_install": not bool(which("winget") or which("choco")),
         "local_app_data": str(local),
         "app_data": str(roaming),
         "user_profile": env.get("USERPROFILE", ""),

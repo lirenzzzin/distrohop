@@ -8,7 +8,6 @@ import sqlite3
 import stat
 from pathlib import Path
 from typing import Iterable, List
-from urllib.parse import quote
 
 
 TRANSIENT_NAMES = {
@@ -99,7 +98,7 @@ def copy_path(source: Path, destination: Path) -> List[str]:
 def sqlite_snapshot(source: Path, destination: Path) -> None:
     """Use SQLite's backup API so WAL content is included consistently."""
     destination.parent.mkdir(parents=True, exist_ok=True)
-    uri = "file:{}?mode=ro".format(quote(str(source.resolve()), safe="/"))
+    uri = "{}?mode=ro".format(source.resolve().as_uri())
     source_connection = sqlite3.connect(uri, uri=True, timeout=5)
     destination_connection = sqlite3.connect(str(destination))
     try:

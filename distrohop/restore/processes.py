@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import csv
 import os
+import platform
+import subprocess
+from io import StringIO
 from pathlib import Path
-from typing import Mapping, Set
+from typing import Callable, Mapping, Optional, Set
 
 
 PROCESS_NAMES: Mapping[str, Set[str]] = {
@@ -22,8 +26,44 @@ PROCESS_NAMES: Mapping[str, Set[str]] = {
 }
 
 
-def is_browser_running(browser_id: str, proc_root: Path = Path("/proc")) -> bool:
+def _windows_processes(
+    runner: Callable[..., subprocess.CompletedProcess],
+) -> Set[str]:
+    try:
+        result = runner(
+            ["tasklist.exe", "/FO", "CSV", "/NH"],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return set()
+    if result.returncode:
+        return set()
+    names: Set[str] = set()
+    for row in csv.reader(StringIO(result.stdout or "")):
+        if row:
+            names.add(row[0].strip().casefold())
+    return names
+
+
+def is_browser_running(
+    browser_id: str,
+    proc_root: Path = Path("/proc"),
+    *,
+    system: Optional[str] = None,
+    runner: Callable[..., subprocess.CompletedProcess] = subprocess.run,
+) -> bool:
     expected = PROCESS_NAMES.get(browser_id, {browser_id})
+    if (system or platform.system()).casefold() == "windows":
+        windows_expected = set()
+        for name in expected:
+            normalized = name.casefold()
+            windows_expected.add(
+                normalized if normalized.endswith(".exe") else normalized + ".exe"
+            )
+        return bool(windows_expected & _windows_processes(runner))
     current = os.getpid()
     try:
         processes = proc_root.iterdir()

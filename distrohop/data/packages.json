@@ -1,6 +1,8 @@
 {
   "brave": {
+    "choco": "brave",
     "flatpak": "com.brave.Browser",
+    "winget": "Brave.Brave",
     "native": {
       "arch": ["brave-bin"],
       "debian": ["brave-browser"],
@@ -9,7 +11,9 @@
     }
   },
   "chrome": {
+    "choco": "googlechrome",
     "flatpak": "com.google.Chrome",
+    "winget": "Google.Chrome",
     "native": {
       "arch": ["google-chrome"],
       "debian": ["google-chrome-stable"],
@@ -18,7 +22,9 @@
     }
   },
   "chromium": {
+    "choco": "chromium",
     "flatpak": "org.chromium.Chromium",
+    "winget": "Hibbiki.Chromium",
     "native": {
       "arch": ["chromium"],
       "debian": ["chromium", "chromium-browser"],
@@ -34,7 +40,9 @@
     }
   },
   "edge": {
+    "choco": "microsoft-edge",
     "flatpak": "com.microsoft.Edge",
+    "winget": "Microsoft.Edge",
     "native": {
       "debian": ["microsoft-edge-stable"],
       "fedora": ["microsoft-edge-stable"],
@@ -42,7 +50,9 @@
     }
   },
   "vivaldi": {
+    "choco": "vivaldi",
     "flatpak": "com.vivaldi.Vivaldi",
+    "winget": "Vivaldi.Vivaldi",
     "native": {
       "arch": ["vivaldi"],
       "debian": ["vivaldi-stable"],
@@ -51,7 +61,9 @@
     }
   },
   "opera": {
+    "choco": "opera",
     "flatpak": "com.opera.Opera",
+    "winget": "Opera.Opera",
     "native": {
       "arch": ["opera"],
       "debian": ["opera-stable"],
@@ -60,7 +72,9 @@
     }
   },
   "firefox": {
+    "choco": "firefox",
     "flatpak": "org.mozilla.firefox",
+    "winget": "Mozilla.Firefox",
     "native": {
       "arch": ["firefox"],
       "debian": ["firefox", "firefox-esr"],
@@ -77,13 +91,17 @@
     }
   },
   "zen": {
+    "choco": "zen-browser",
     "flatpak": "app.zen_browser.zen",
+    "winget": "Zen-Team.Zen-Browser",
     "native": {
       "arch": ["zen-browser-bin"]
     }
   },
   "librewolf": {
+    "choco": "librewolf",
     "flatpak": "io.gitlab.librewolf-community",
+    "winget": "LibreWolf.LibreWolf",
     "native": {
       "arch": ["librewolf-bin"],
       "debian": ["librewolf"],
@@ -91,13 +109,17 @@
     }
   },
   "floorp": {
+    "choco": "floorp",
     "flatpak": "one.ablaze.floorp",
+    "winget": "Ablaze.Floorp",
     "native": {
       "arch": ["floorp-bin"]
     }
   },
   "waterfox": {
+    "choco": "waterfox",
     "flatpak": "net.waterfox.waterfox",
+    "winget": "Waterfox.Waterfox",
     "native": {
       "arch": ["waterfox-bin"]
     }

@@ -109,3 +109,78 @@ def detect_linux(
         except (OSError, subprocess.SubprocessError, json.JSONDecodeError, KeyError, TypeError):
             continue
     return []
+
+
+def parse_windows_volumes(
+    text: str,
+    *,
+    system_drive: str = "C:",
+) -> List[Dict[str, object]]:
+    payload = json.loads(text or "[]")
+    if isinstance(payload, dict):
+        payload = [payload]
+    records: List[Dict[str, object]] = []
+    for volume in payload if isinstance(payload, list) else []:
+        if not isinstance(volume, dict) or not volume.get("DriveLetter"):
+            continue
+        letter = str(volume["DriveLetter"]).rstrip(":") + ":"
+        path = letter + "\\"
+        raw_drive_type = volume.get("DriveType")
+        drive_type = {
+            2: "removable",
+            3: "fixed",
+        }.get(raw_drive_type, str(raw_drive_type or "").casefold())
+        system = letter.casefold() == system_drive.rstrip("\\").casefold()
+        records.append({
+            "name": letter,
+            "path": path,
+            "label": volume.get("FileSystemLabel"),
+            "size": volume.get("Size"),
+            "free": volume.get("SizeRemaining"),
+            "filesystem": volume.get("FileSystem"),
+            "mountpoints": [path],
+            "removable": drive_type == "removable",
+            "read_only": False,
+            "system": system,
+            "writable": True,
+            "candidate": not system and drive_type in {
+                "fixed",
+                "removable",
+            },
+        })
+    return records
+
+
+def detect_windows(
+    *,
+    environ: Optional[Dict[str, str]] = None,
+    runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
+) -> List[Dict[str, object]]:
+    env = os.environ if environ is None else environ
+    script = (
+        "Get-Volume | Select-Object DriveLetter,FileSystemLabel,FileSystem,"
+        "Size,SizeRemaining,DriveType | ConvertTo-Json -Compress"
+    )
+    try:
+        result = runner(
+            [
+                "powershell.exe",
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-Command",
+                script,
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=20,
+        )
+        if result.returncode:
+            return []
+        return parse_windows_volumes(
+            result.stdout,
+            system_drive=env.get("SystemDrive", "C:"),
+        )
+    except (OSError, subprocess.SubprocessError, json.JSONDecodeError, TypeError):
+        return []

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+import os
 from typing import Any, Optional, Sequence
 
 from distrohop.ui import cli, tk_available
@@ -16,6 +17,10 @@ def _load_gui() -> Any:
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
     arguments = list(sys.argv[1:] if argv is None else argv)
+    if os.name == "nt" and os.environ.get("DISTROHOP_BOOTSTRAPPED") != "1":
+        from distrohop import bootstrap
+
+        return bootstrap.main(arguments)
     forced_gui = "--gui" in arguments
     if forced_gui:
         arguments.remove("--gui")

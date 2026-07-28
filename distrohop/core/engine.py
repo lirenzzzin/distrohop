@@ -14,13 +14,14 @@ from typing import Any, Dict, Mapping, Optional, Sequence, Tuple
 
 from distrohop.core.events import Event, EventCallback, discard_event
 from distrohop.core.selection import Selection
-from distrohop.capture import chromium_linux, extras, firefox
+from distrohop.capture import chromium_linux, chromium_win, extras, firefox
 from distrohop.capture.profile_raw import list_files
 from distrohop.detect import ai, browsers, disks, distro, windows
 from distrohop.platform_ import current_platform
 from distrohop.restore.apply_raw import apply_raw_profile
 from distrohop.restore.apply_neutral import apply_neutral_profile
 from distrohop.restore import installer
+from distrohop.restore import win_installer
 from distrohop.restore import nixos
 from distrohop.restore import resume as resume_state
 from distrohop.restore.processes import is_browser_running
@@ -64,6 +65,7 @@ class RestorePlan:
     preparation: str = ""
     requires_resume: bool = False
     os_info: Mapping[str, Any] = field(default_factory=dict)
+    platform: str = "linux"
 
 
 def list_inventory(
@@ -86,7 +88,7 @@ def list_inventory(
     else:
         os_info = windows.detect(env)
         browser_items = browsers.detect_windows(env)
-        disk_items = []
+        disk_items = disks.detect_windows(environ=dict(env))
     callback(Event("step", "Plataforma detectada", {"os": os_info}))
     ai_items = ai.detect(user_home)
     warnings = []
@@ -201,11 +203,13 @@ def plan_backup(
     bundle_name: Optional[str] = None,
     callback: EventCallback = discard_event,
 ) -> BackupPlan:
-    """Produce a complete read-only, file-by-file Linux backup plan."""
+    """Produce a complete read-only, file-by-file backup plan."""
     data = inventory or list_inventory(callback=callback)
-    if data.get("platform") != "linux":
-        raise RuntimeError("a Fase 2 implementa backup somente no Linux")
-    user_home = home or Path(os.environ.get("HOME", str(Path.home())))
+    platform_name = str(data.get("platform") or "")
+    if platform_name not in ("linux", "windows"):
+        raise RuntimeError("plataforma de backup não suportada")
+    home_variable = "USERPROFILE" if platform_name == "windows" else "HOME"
+    user_home = home or Path(os.environ.get(home_variable, str(Path.home())))
     selected_profiles = _selected_profiles(data, selection.browser_profiles)
     selected_accounts = _selected_accounts(data, selection.ai_accounts)
     source_files = []
@@ -324,8 +328,9 @@ def run_backup(
         raise ValueError("o backup cifrado exige senha")
     if not plan.encrypted and password:
         raise ValueError("senha fornecida para um backup sem cifra")
-    if plan.inventory.get("platform") != "linux":
-        raise RuntimeError("a Fase 2 implementa backup somente no Linux")
+    platform_name = str(plan.inventory.get("platform") or "")
+    if platform_name not in ("linux", "windows"):
+        raise RuntimeError("plataforma de backup não suportada")
     callback(Event("started", "Iniciando captura", {"bundle": plan.bundle_name}))
     selected_profiles = _selected_profiles(plan.inventory, plan.selection.browser_profiles)
     selected_accounts = _selected_accounts(plan.inventory, plan.selection.ai_accounts)
@@ -340,9 +345,16 @@ def run_backup(
             destination = payload / relative
             callback(Event("step", "Capturando perfil", {"source": str(source)}))
             if browser.get("engine") == "chromium":
-                summary = chromium_linux.capture_profile(
-                    source, destination, browser_id=str(browser["id"])
-                )
+                if platform_name == "windows":
+                    summary = chromium_win.capture_profile(
+                        source,
+                        destination,
+                        user_data_root=Path(str(browser.get("path") or source.parent)),
+                    )
+                else:
+                    summary = chromium_linux.capture_profile(
+                        source, destination, browser_id=str(browser["id"])
+                    )
             elif browser.get("engine") == "firefox":
                 summary = firefox.capture_profile(source, destination)
             else:
@@ -390,7 +402,7 @@ def run_backup(
             "format_version": 1,
             "created_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
             "source": {
-                "platform": "linux",
+                "platform": platform_name,
                 "distro": dict(plan.inventory.get("os", {})),
                 "hostname": socket.gethostname(),
             },
@@ -410,13 +422,16 @@ def run_backup(
             metadata=metadata,
             encrypted=plan.encrypted,
             password=password,
+            system=platform_name,
         )
         callback(Event("step", "Gravando e verificando destinos"))
         destinations = publish_to_targets(
             canonical,
             plan.targets,
             plan.bundle_name,
-            require_private_permissions=not plan.encrypted,
+            require_private_permissions=(
+                not plan.encrypted and platform_name == "linux"
+            ),
         )
         for destination in destinations:
             if not verify_bundle(destination):
@@ -553,8 +568,9 @@ def plan_restore(
     callback: EventCallback = discard_event,
 ) -> RestorePlan:
     data = inventory or list_inventory(callback=callback)
-    if data.get("platform") != "linux":
-        raise RuntimeError("a Fase 3 implementa restore somente no Linux")
+    platform_name = str(data.get("platform") or "")
+    if platform_name not in ("linux", "windows"):
+        raise RuntimeError("plataforma de restore não suportada")
     bundle = Path(bundle)
     manifest = read_manifest(bundle)
     if not verify_bundle(bundle):
@@ -568,7 +584,14 @@ def plan_restore(
         data,
         fallback=source_engine if target_id == component.get("id") else None,
     )
-    mode = "raw" if source_engine == target_engine else "neutral"
+    source_platform = str(
+        manifest.get("source", {}).get("platform") or platform_name
+    )
+    mode = (
+        "raw"
+        if source_engine == target_engine and source_platform == platform_name
+        else "neutral"
+    )
     payload_prefix = prefix + ("/raw" if mode == "raw" else "/neutral")
     entries = manifest["files"]
     selected_files = sorted(
@@ -605,7 +628,12 @@ def plan_restore(
                 )
             )
         strategy = str(data.get("os", {}).get("strategy") or "")
-        if strategy == "declarativa":
+        if platform_name == "windows":
+            install_command = win_installer.plan_install(
+                target_id,
+                data.get("os", {}),
+            )
+        elif strategy == "declarativa":
             preparation = "declarative"
             requires_resume = True
         else:
@@ -678,6 +706,7 @@ def plan_restore(
         preparation=preparation,
         requires_resume=requires_resume,
         os_info=dict(data.get("os", {})),
+        platform=platform_name,
     )
 
 
@@ -749,7 +778,10 @@ def run_restore(
                 {"command": list(plan.install_command)},
             )
         )
-        installer.run_install(plan.install_command)
+        if plan.platform == "windows":
+            win_installer.run_install(plan.install_command)
+        else:
+            installer.run_install(plan.install_command)
     callback(Event("started", "Verificando bundle", {"bundle": str(plan.bundle)}))
     with materialize_payload(plan.bundle, password=password) as payload:
         if not verify_materialized_payload(plan.bundle, payload):
@@ -781,6 +813,7 @@ def run_restore(
                 plan.target_profile,
                 source_engine=str(plan.component.get("engine") or ""),
                 target_engine=plan.target_engine,
+                target_platform=plan.platform,
             )
             for warning in result.get("warnings", ()):
                 callback(Event("warn", str(warning)))
