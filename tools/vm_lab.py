@@ -764,6 +764,7 @@ def command_test(distro: Mapping[str, Any], root: Path) -> None:
     paths = _paths(root, distro)
     remote = (
         "cd ~/distrohop && "
+        "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin "
         "DISTROHOP_VM_DISTRO={} python3 tools/vm/guest_smoke.py"
     ).format(shlex.quote(str(distro["id"])))
     _ssh(distro, root, remote)
