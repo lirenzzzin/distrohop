@@ -3,10 +3,11 @@
 Migração segura de perfis de navegador e credenciais de ferramentas de IA
 entre distribuições Linux. Windows será adicionado numa fase posterior.
 
-O projeto está sendo implementado na ordem definida em `SPEC.md`. As Fases 1 e
-2 fornecem inventário somente leitura e backup Linux: cópia raw do perfil,
+O projeto está sendo implementado na ordem definida em `SPEC.md`. As Fases 1 a
+3 fornecem inventário, backup e restore same-engine no Linux: cópia raw do perfil,
 cookies/senhas/favoritos neutros, contas de IA, SSH/GPG/dotfiles, inventário de
-pacotes, cifra opcional e gravação verificada em múltiplos destinos.
+pacotes, cifra opcional, gravação verificada em múltiplos destinos e restauração
+atômica com cópia de segurança obrigatória do perfil anterior.
 
 Requisitos atuais:
 
@@ -26,6 +27,8 @@ Uso a partir do código-fonte:
 ./bin/distrohop backup --dry-run
 ./bin/distrohop backup --target /run/media/usuario/BACKUP
 ./bin/distrohop backup --target /mnt/hd1 --target /mnt/hd2 --encrypt
+./bin/distrohop restore /mnt/hd1/distrohop-meu-pc-20260728-1200 --dry-run
+./bin/distrohop restore /mnt/hd1/distrohop-meu-pc-20260728-1200 --browser firefox
 python3 -m distrohop list
 ```
 
@@ -35,6 +38,13 @@ conteúdo fica legível para quem acessar o disco e recebe permissões `600/700`
 Com `--encrypt`, a senha é solicitada sem eco ou lida por `--password-file`;
 ela nunca é aceita como argumento de linha de comando. `manifest.json` continua
 em claro por projeto.
+
+`restore --dry-run` enumera arquivo por arquivo sem alterar o perfil. O restore
+recusa continuar enquanto o navegador estiver aberto, verifica todos os
+checksums e troca o perfil de forma atômica. O perfil anterior fica ao lado do
+novo com sufixo `.distrohop-before-<data>`. Se o navegador estiver ausente,
+`--install` usa receita nativa verificada pela distribuição e cai para Flatpak
+quando necessário.
 
 Compatibilidade detalhada: [docs/LINUX-COMPATIBILITY.md](docs/LINUX-COMPATIBILITY.md).
 Direção visual da GUI: [docs/GUI-DESIGN.md](docs/GUI-DESIGN.md).

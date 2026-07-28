@@ -1,0 +1,105 @@
+{
+  "brave": {
+    "flatpak": "com.brave.Browser",
+    "native": {
+      "arch": ["brave-bin"],
+      "debian": ["brave-browser"],
+      "fedora": ["brave-browser"],
+      "suse": ["brave-browser"]
+    }
+  },
+  "chrome": {
+    "flatpak": "com.google.Chrome",
+    "native": {
+      "arch": ["google-chrome"],
+      "debian": ["google-chrome-stable"],
+      "fedora": ["google-chrome-stable"],
+      "suse": ["google-chrome-stable"]
+    }
+  },
+  "chromium": {
+    "flatpak": "org.chromium.Chromium",
+    "native": {
+      "arch": ["chromium"],
+      "debian": ["chromium", "chromium-browser"],
+      "fedora": ["chromium"],
+      "suse": ["chromium"],
+      "alpine": ["chromium"],
+      "void": ["chromium"],
+      "gentoo": ["www-client/chromium"],
+      "solus": ["chromium"],
+      "slackware": ["chromium"],
+      "mageia": ["chromium-browser"],
+      "pclinuxos": ["chromium-browser"]
+    }
+  },
+  "edge": {
+    "flatpak": "com.microsoft.Edge",
+    "native": {
+      "debian": ["microsoft-edge-stable"],
+      "fedora": ["microsoft-edge-stable"],
+      "suse": ["microsoft-edge-stable"]
+    }
+  },
+  "vivaldi": {
+    "flatpak": "com.vivaldi.Vivaldi",
+    "native": {
+      "arch": ["vivaldi"],
+      "debian": ["vivaldi-stable"],
+      "fedora": ["vivaldi-stable"],
+      "suse": ["vivaldi-stable"]
+    }
+  },
+  "opera": {
+    "flatpak": "com.opera.Opera",
+    "native": {
+      "arch": ["opera"],
+      "debian": ["opera-stable"],
+      "fedora": ["opera-stable"],
+      "suse": ["opera"]
+    }
+  },
+  "firefox": {
+    "flatpak": "org.mozilla.firefox",
+    "native": {
+      "arch": ["firefox"],
+      "debian": ["firefox", "firefox-esr"],
+      "fedora": ["firefox"],
+      "suse": ["MozillaFirefox"],
+      "alpine": ["firefox"],
+      "void": ["firefox"],
+      "gentoo": ["www-client/firefox"],
+      "solus": ["firefox"],
+      "clear-linux": ["browser-firefox"],
+      "slackware": ["mozilla-firefox"],
+      "mageia": ["firefox"],
+      "pclinuxos": ["firefox"]
+    }
+  },
+  "zen": {
+    "flatpak": "app.zen_browser.zen",
+    "native": {
+      "arch": ["zen-browser-bin"]
+    }
+  },
+  "librewolf": {
+    "flatpak": "io.gitlab.librewolf-community",
+    "native": {
+      "arch": ["librewolf-bin"],
+      "debian": ["librewolf"],
+      "fedora": ["librewolf"]
+    }
+  },
+  "floorp": {
+    "flatpak": "one.ablaze.floorp",
+    "native": {
+      "arch": ["floorp-bin"]
+    }
+  },
+  "waterfox": {
+    "flatpak": "net.waterfox.waterfox",
+    "native": {
+      "arch": ["waterfox-bin"]
+    }
+  }
+}

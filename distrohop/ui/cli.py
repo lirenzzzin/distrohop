@@ -15,7 +15,9 @@ from distrohop.core.engine import (
     default_selection,
     list_inventory,
     plan_backup,
+    plan_restore,
     run_backup,
+    run_restore,
 )
 from distrohop.core.events import Event
 from distrohop.core.selection import Selection
@@ -67,6 +69,28 @@ def build_parser() -> argparse.ArgumentParser:
     backup.add_argument("--no-browsers", action="store_true", help="não captura perfis de navegador")
     backup.add_argument("--no-ai", action="store_true", help="não captura contas de IA")
     backup.add_argument("--no-extras", action="store_true", help="não captura dados extras")
+    restore = subparsers.add_parser(
+        "restore", help="restaura um perfil Linux a partir de um bundle"
+    )
+    restore.add_argument("bundle", help="pasta do bundle Distrohop")
+    restore.add_argument("--browser", help="ID do navegador de origem")
+    restore.add_argument("--source-profile", help="nome do perfil dentro do bundle")
+    restore.add_argument("--target-profile", help="pasta do perfil de destino")
+    restore.add_argument(
+        "--install",
+        action="store_true",
+        help="instala o navegador quando ausente",
+    )
+    restore.add_argument(
+        "--password-file",
+        metavar="ARQUIVO",
+        help="senha de bundle cifrado em arquivo privado",
+    )
+    restore.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="lista cada alteração sem escrever",
+    )
     return parser
 
 
@@ -145,6 +169,23 @@ def render_backup_plan(plan: BackupPlan) -> str:
     return "\n".join(lines)
 
 
+def render_restore_plan(plan: Any) -> str:
+    lines = [
+        "DRY-RUN — nenhum arquivo será alterado.",
+        "Bundle: {}".format(plan.bundle),
+        "Navegador: {}".format(plan.component.get("name") or plan.component.get("id")),
+        "Perfil de destino: {}".format(plan.target_profile),
+        "Cifra: {}".format("sim" if plan.encrypted else "não"),
+    ]
+    if plan.install_command:
+        lines.extend(("", "INSTALAÇÃO:", "  {}".format(" ".join(plan.install_command))))
+    lines.extend(("", "LEITURAS:"))
+    lines.extend("  {}".format(path) for path in plan.sources)
+    lines.extend(("", "GRAVAÇÕES/MOVIMENTAÇÕES PLANEJADAS:"))
+    lines.extend("  {}".format(path) for path in plan.outputs)
+    return "\n".join(lines)
+
+
 def _event_to_stderr(event: Event) -> None:
     if event.kind == "plan":
         return
@@ -210,6 +251,33 @@ def _read_password(args: argparse.Namespace, parser: argparse.ArgumentParser) ->
     return password
 
 
+def _read_restore_password(
+    args: argparse.Namespace,
+    parser: argparse.ArgumentParser,
+    encrypted: bool,
+) -> Optional[str]:
+    if args.password_file and not encrypted:
+        parser.error("--password-file foi fornecido para um bundle sem cifra")
+    if not encrypted:
+        return None
+    if args.password_file:
+        try:
+            path = Path(args.password_file)
+            if stat.S_IMODE(path.stat().st_mode) & 0o077:
+                parser.error("--password-file deve ter permissão 600 ou mais restritiva")
+            password = path.read_text(encoding="utf-8").rstrip("\r\n")
+        except OSError as error:
+            parser.error("não foi possível ler --password-file: {}".format(error))
+    else:
+        try:
+            password = getpass.getpass("Senha do bundle: ")
+        except (EOFError, KeyboardInterrupt):
+            parser.error("não foi possível ler a senha; use --password-file")
+    if not password or "\n" in password or "\r" in password:
+        parser.error("senha vazia ou inválida")
+    return password
+
+
 def main(argv: Optional[Sequence[str]] = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -254,6 +322,34 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             result["destinations"], result["manifest_sha256"]
         ):
             print("  {}  manifest sha256={}".format(destination, digest))
+        return 0
+    if args.command == "restore":
+        inventory = list_inventory(callback=_event_to_stderr)
+        try:
+            plan = plan_restore(
+                Path(args.bundle),
+                browser_id=args.browser,
+                source_profile=args.source_profile,
+                target_profile=Path(args.target_profile) if args.target_profile else None,
+                install=args.install,
+                inventory=inventory,
+                callback=_event_to_stderr,
+            )
+        except (OSError, RuntimeError, ValueError) as error:
+            parser.error(str(error))
+        if args.dry_run:
+            print(render_restore_plan(plan))
+            return 0
+        password = _read_restore_password(args, parser, plan.encrypted)
+        try:
+            result = run_restore(plan, password=password, callback=_event_to_stderr)
+        except (OSError, RuntimeError, ValueError) as error:
+            print("Erro: {}".format(error), file=sys.stderr)
+            return 1
+        print("Restore concluído:")
+        print("  perfil: {}".format(result["target"]))
+        if result.get("previous_profile"):
+            print("  cópia anterior: {}".format(result["previous_profile"]))
         return 0
     else:
         parser.print_help()

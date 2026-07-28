@@ -9,6 +9,7 @@ import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
+from pathlib import PurePosixPath
 from typing import Any, Dict, Mapping, Optional, Sequence, Tuple
 
 from distrohop.core.events import Event, EventCallback, discard_event
@@ -17,7 +18,16 @@ from distrohop.capture import chromium_linux, extras, firefox
 from distrohop.capture.profile_raw import list_files
 from distrohop.detect import ai, browsers, disks, distro, windows
 from distrohop.platform_ import current_platform
-from distrohop.vault.bundle import assemble_bundle, verify_bundle
+from distrohop.restore.apply_raw import apply_raw_profile
+from distrohop.restore import installer
+from distrohop.restore.processes import is_browser_running
+from distrohop.vault.bundle import (
+    assemble_bundle,
+    materialize_payload,
+    read_manifest,
+    verify_bundle,
+    verify_materialized_payload,
+)
 from distrohop.vault.crypto import sha256_file
 from distrohop.vault.targets import publish_to_targets
 
@@ -32,6 +42,18 @@ class BackupPlan:
     sources: Tuple[str, ...]
     outputs: Tuple[str, ...]
     encrypted: bool = False
+
+
+@dataclass(frozen=True)
+class RestorePlan:
+    bundle: Path
+    component: Mapping[str, Any]
+    target_profile: Path
+    raw_prefix: str
+    sources: Tuple[str, ...]
+    outputs: Tuple[str, ...]
+    encrypted: bool
+    install_command: Tuple[str, ...] = ()
 
 
 def list_inventory(
@@ -333,6 +355,7 @@ def run_backup(
                     "version": browser.get("version"),
                     "packaging": browser.get("packaging"),
                     "profile": profile.get("name"),
+                    "bundle_path": str(relative),
                     "captured": summary,
                 }
             )
@@ -398,4 +421,199 @@ def run_backup(
             "warnings": capture_warnings,
         }
     callback(Event("done", "Backup concluído e verificado", result))
+    return result
+
+
+def _safe_bundle_prefix(value: str) -> str:
+    path = PurePosixPath(value)
+    if path.is_absolute() or ".." in path.parts or not path.parts:
+        raise ValueError("caminho inseguro no manifesto: {}".format(value))
+    return str(path)
+
+
+def _select_restore_component(
+    manifest: Mapping[str, Any],
+    browser_id: Optional[str],
+    source_profile: Optional[str],
+) -> Mapping[str, Any]:
+    components = [
+        item for item in manifest.get("browsers", []) if isinstance(item, dict)
+    ]
+    if browser_id:
+        components = [item for item in components if item.get("id") == browser_id]
+    if source_profile:
+        components = [
+            item
+            for item in components
+            if source_profile in (
+                str(item.get("profile") or ""),
+                str(item.get("bundle_path") or ""),
+            )
+        ]
+    if not components:
+        raise ValueError("nenhum perfil do bundle corresponde à seleção")
+    if len(components) != 1:
+        choices = ", ".join(
+            "{}/{}".format(item.get("id"), item.get("profile"))
+            for item in components
+        )
+        raise ValueError(
+            "selecione um perfil de origem com --browser e --source-profile: {}".format(
+                choices
+            )
+        )
+    return components[0]
+
+
+def _component_prefix(component: Mapping[str, Any]) -> str:
+    explicit = component.get("bundle_path")
+    if explicit:
+        return _safe_bundle_prefix(str(explicit))
+    browser = _safe_name(str(component.get("id") or "browser"))
+    profile = _safe_name(str(component.get("profile") or "profile"))
+    return "browsers/{}/{}".format(browser, profile)
+
+
+def _target_profile_for(
+    inventory: Mapping[str, Any],
+    component: Mapping[str, Any],
+    explicit: Optional[Path],
+) -> Path:
+    if explicit is not None:
+        return Path(explicit)
+    browsers_found = [
+        item
+        for item in inventory.get("browsers", [])
+        if item.get("id") == component.get("id")
+    ]
+    profiles = [
+        profile
+        for browser in browsers_found
+        for profile in browser.get("profiles", [])
+    ]
+    source_name = str(component.get("profile") or "")
+    same_name = [profile for profile in profiles if str(profile.get("name")) == source_name]
+    if len(same_name) == 1:
+        return Path(str(same_name[0]["path"]))
+    if len(profiles) == 1:
+        return Path(str(profiles[0]["path"]))
+    if not profiles:
+        raise ValueError(
+            "perfil de destino não detectado; informe --target-profile"
+        )
+    choices = ", ".join(str(profile["path"]) for profile in profiles)
+    raise ValueError(
+        "há vários perfis de destino; informe --target-profile: {}".format(choices)
+    )
+
+
+def plan_restore(
+    bundle: Path,
+    *,
+    browser_id: Optional[str] = None,
+    source_profile: Optional[str] = None,
+    target_profile: Optional[Path] = None,
+    install: bool = False,
+    inventory: Optional[Mapping[str, Any]] = None,
+    callback: EventCallback = discard_event,
+) -> RestorePlan:
+    data = inventory or list_inventory(callback=callback)
+    if data.get("platform") != "linux":
+        raise RuntimeError("a Fase 3 implementa restore somente no Linux")
+    bundle = Path(bundle)
+    manifest = read_manifest(bundle)
+    if not verify_bundle(bundle):
+        raise ValueError("checksums do bundle não conferem")
+    component = _select_restore_component(manifest, browser_id, source_profile)
+    prefix = _component_prefix(component)
+    raw_prefix = prefix + "/raw"
+    entries = manifest["files"]
+    raw_files = sorted(
+        relative
+        for relative in entries
+        if relative.startswith(raw_prefix + "/")
+    )
+    if not raw_files:
+        raise ValueError("o perfil selecionado não contém cópia raw")
+    target = _target_profile_for(data, component, target_profile)
+    matching_browsers = [
+        item
+        for item in data.get("browsers", [])
+        if item.get("id") == component.get("id")
+    ]
+    installed = any(item.get("installed") is not False for item in matching_browsers)
+    install_command: Tuple[str, ...] = ()
+    if not installed:
+        if not install:
+            raise ValueError(
+                "{} não está instalado; repita com --install".format(
+                    component.get("name") or component.get("id")
+                )
+            )
+        install_command = installer.plan_install(
+            str(component.get("id") or ""), data.get("os", {})
+        )
+    outputs = tuple(
+        str(target / PurePosixPath(relative).relative_to(raw_prefix))
+        for relative in raw_files
+    ) + (
+        "{}.distrohop-before-<data>".format(target),
+    )
+    callback(
+        Event(
+            "plan",
+            "Plano de restauração criado",
+            {"browser": component.get("id"), "files": len(raw_files)},
+        )
+    )
+    return RestorePlan(
+        bundle=bundle,
+        component=component,
+        target_profile=target,
+        raw_prefix=raw_prefix,
+        sources=tuple(str(bundle / relative) for relative in raw_files),
+        outputs=outputs,
+        encrypted=bool(manifest.get("encrypted")),
+        install_command=install_command,
+    )
+
+
+def run_restore(
+    plan: RestorePlan,
+    *,
+    password: Optional[str] = None,
+    callback: EventCallback = discard_event,
+    running_check=is_browser_running,
+) -> Dict[str, Any]:
+    browser_id = str(plan.component.get("id") or "")
+    if running_check(browser_id):
+        raise RuntimeError(
+            "{} está aberto; feche todas as janelas antes do restore".format(
+                plan.component.get("name") or browser_id
+            )
+        )
+    if plan.install_command:
+        callback(
+            Event(
+                "step",
+                "Instalando navegador",
+                {"command": list(plan.install_command)},
+            )
+        )
+        installer.run_install(plan.install_command)
+    callback(Event("started", "Verificando bundle", {"bundle": str(plan.bundle)}))
+    with materialize_payload(plan.bundle, password=password) as payload:
+        if not verify_materialized_payload(plan.bundle, payload):
+            raise ValueError("checksums do payload decriptado não conferem")
+        raw = payload / PurePosixPath(plan.raw_prefix)
+        callback(
+            Event(
+                "step",
+                "Aplicando perfil raw",
+                {"source": str(raw), "target": str(plan.target_profile)},
+            )
+        )
+        result = apply_raw_profile(raw, plan.target_profile)
+    result.update({"browser": browser_id, "mode": "raw"})
+    callback(Event("done", "Restore concluído", result))
     return result

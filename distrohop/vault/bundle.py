@@ -6,10 +6,12 @@ import hashlib
 import json
 import os
 import shutil
+import tempfile
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Dict, Mapping, Optional
+from typing import Any, Dict, Iterator, Mapping, Optional
 
-from distrohop.vault.crypto import encrypt_tree, sha256_file
+from distrohop.vault.crypto import decrypt_archive, encrypt_tree, sha256_file
 
 
 README = """NÃO FORMATAR — bundle de migração Distrohop
@@ -107,6 +109,58 @@ def verify_bundle(bundle: Path) -> bool:
             if not path.is_file():
                 return False
             if path.stat().st_size != details["size"] or sha256_file(path) != details["sha256"]:
+                return False
+        return True
+    except (OSError, ValueError, KeyError, TypeError):
+        return False
+
+
+def read_manifest(bundle: Path) -> Dict[str, Any]:
+    try:
+        manifest = json.loads((bundle / "manifest.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError, TypeError) as error:
+        raise ValueError("manifest.json inválido: {}".format(error)) from error
+    if not isinstance(manifest, dict) or not isinstance(manifest.get("files"), dict):
+        raise ValueError("manifest.json não contém o mapa de arquivos")
+    return manifest
+
+
+@contextmanager
+def materialize_payload(
+    bundle: Path,
+    *,
+    password: Optional[str] = None,
+) -> Iterator[Path]:
+    manifest = read_manifest(bundle)
+    if not verify_bundle(bundle):
+        raise ValueError("checksums do bundle não conferem")
+    if not manifest.get("encrypted"):
+        yield bundle
+        return
+    if not password:
+        raise ValueError("o bundle cifrado exige senha")
+    encrypted = bundle / "bundle.tar.enc"
+    with tempfile.TemporaryDirectory(prefix="distrohop-restore-") as directory:
+        payload = Path(directory) / "payload"
+        decrypt_archive(encrypted, payload, password)
+        yield payload
+
+
+def verify_materialized_payload(bundle: Path, payload: Path) -> bool:
+    try:
+        manifest = read_manifest(bundle)
+        for relative, details in manifest["files"].items():
+            if details.get("stored", True):
+                continue
+            path = (payload / relative).resolve()
+            root = payload.resolve()
+            if path != root and root not in path.parents:
+                return False
+            if not path.is_file():
+                return False
+            if path.stat().st_size != details["size"]:
+                return False
+            if sha256_file(path) != details["sha256"]:
                 return False
         return True
     except (OSError, ValueError, KeyError, TypeError):
