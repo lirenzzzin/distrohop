@@ -4,7 +4,7 @@ Migração segura de perfis de navegador e credenciais de ferramentas de IA
 entre distribuições Linux. Windows será adicionado numa fase posterior.
 
 O projeto está sendo implementado na ordem definida em `SPEC.md`. As Fases 1 a
-4 fornecem inventário, backup e restore no Linux: cópia raw do perfil,
+5 fornecem inventário, backup e restore no Linux por CLI e GUI: cópia raw do perfil,
 cookies/senhas/favoritos neutros, contas de IA, SSH/GPG/dotfiles, inventário de
 pacotes, cifra opcional, gravação verificada em múltiplos destinos e restauração
 atômica same-engine ou conversão Chromium↔Firefox, sempre com cópia de segurança
@@ -55,6 +55,13 @@ Chromium/Firefox e o prefixo criptográfico exigido pelo Chromium moderno.
 Senhas ficam em `distrohop-logins.csv` para importação manual, pois os cofres
 NSS e Chromium não são intercambiáveis; sessões baseadas em `localStorage`
 podem exigir novo login.
+
+Sem argumentos, `./bin/distrohop` abre a GUI quando Tk está disponível. Use
+`--cli` ou qualquer subcomando para o modo texto e `--gui` para exigir a
+interface gráfica. Se Tk faltar, o launcher mostra o comando de instalação
+adequado à distribuição e cai para a CLI. A GUI oferece os mesmos planos e
+travas do motor, com temas claro/escuro, sidebar auto-retrátil e progresso
+animado sem bloquear a janela.
 
 Compatibilidade detalhada: [docs/LINUX-COMPATIBILITY.md](docs/LINUX-COMPATIBILITY.md).
 Direção visual da GUI: [docs/GUI-DESIGN.md](docs/GUI-DESIGN.md).

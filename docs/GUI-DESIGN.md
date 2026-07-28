@@ -39,7 +39,8 @@ Termos do conceito:
 ## Aparência
 
 - Fonte preferida pela plataforma, com fallback seguro.
-- Ícones próprios em PNG, com versões para claro e escuro.
+- Ícones vetoriais desenhados no `Canvas` e glifos seguros da fonte da
+  plataforma, sem ativos externos ou dependências.
 - Bordas discretas, contraste alto, espaçamento generoso e no máximo uma cor de
   destaque por tela.
 - Tema inicial segue o sistema quando detectável; escolha do usuário prevalece.
@@ -69,3 +70,14 @@ Restore:
 
 CLI e GUI chamarão exatamente o mesmo motor. A GUI consumirá eventos por uma
 fila e atualizará widgets pela thread principal.
+
+## Implementação da Fase 5
+
+- `distrohop` sem argumento prefere a GUI; `--cli` e subcomandos nunca carregam
+  Tk; `--gui` falha com instrução específica da distro quando o runtime falta.
+- Os assistentes expõem seleção de perfis/contas/extras, múltiplos destinos,
+  cifra, dry-run, leitura do manifesto e restore same/cross-engine.
+- Trabalho pesado roda em thread daemon; eventos passam por `queue.Queue` e só
+  a thread principal toca nos widgets.
+- A sidebar anima entre 232 e 72 px e cancela animações antigas quando o fluxo
+  muda, evitando indicador visual fora de sincronia com o estado do motor.
