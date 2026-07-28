@@ -33,7 +33,7 @@ Quando um passo cai na coluna direita, o app imprime o comando/bloco exato pra c
 - Migrar extensões entre engines diferentes (Chromium→Firefox) — impossível, só se avisa.
 - Migrar `localStorage`/IndexedDB cross-engine — mesma coisa; é a causa de "logou o cookie mas o site pede login".
 - Sincronização contínua. Isto é um snapshot pontual, não um Syncthing.
-- GUI. CLI interativa com prompts, mais flags pra rodar sem perguntas.
+- Toolkit de GUI que exija `pip install` (Qt/GTK via bindings, Electron, web). A GUI usa só `tkinter` (ver seção "Interface").
 
 ## Stack
 
@@ -44,17 +44,28 @@ Python 3.9+ **só com stdlib**, multiplataforma (Linux e Windows). Sem `pip inst
 
 A escolha da plataforma é a **primeira** ramificação do código (`platform.system()`), antes de qualquer detecção de distro.
 
+**GUI sem dependência extra:** a interface gráfica usa `tkinter`, que faz parte da stdlib — não é `pip install`. Ressalva importante: o *runtime* Tk nem sempre está instalado num Linux minimalista/live (no Arch/CachyOS é o pacote `tk`; no Debian, `python3-tk`). No Windows o instalador oficial do python.org já traz Tk embutido. Por isso a GUI é a frente **preferida quando Tk está presente**, mas a **CLI é o núcleo sempre disponível** e o app cai nela automaticamente (com aviso) se o Tk faltar. Nunca depender de GUI pra uma operação existir.
+
 ## Arquitetura
 
 Repo novo em `/home/lorenzzo/distrohop`. Módulos pequenos e testáveis isoladamente:
 
+Princípio de arquitetura: **motor (`core/` + os módulos de trabalho) não tem I/O de usuário.** Ele recebe parâmetros, emite eventos de progresso por callback, e devolve dados estruturados. As duas frentes — CLI e GUI — são finas e só traduzem isso pra texto ou pra widgets. Nenhuma regra de negócio mora numa frente; assim CLI e GUI nunca divergem e o motor é testável sozinho.
+
 ```
-distrohop.bat / distrohop        # launchers (Windows / Unix) → bootstrap → cli
+distrohop.bat / distrohop        # launchers (Windows / Unix) → bootstrap → frente
 distrohop/
+  __main__.py            # ponto de entrada: escolhe CLI ou GUI (ver "Interface")
   bootstrap.py           # roda ANTES do app: no Windows checa Defender/exclusão
   platform_.py           # platform.system() → "linux" | "windows"; despacho
-  cli.py                 # subcomandos, prompts, --dry-run global
+  core/
+    engine.py            # API única: plan_backup(), run_backup(), plan_restore(), run_restore()
+    events.py            # tipos de evento de progresso (started/step/warn/done/error)
+    selection.py         # o que backupear/restaurar (struct que CLI e GUI preenchem)
   ui/
+    cli.py               # frente CLI: prompts, flags, --dry-run, render de eventos em texto
+    gui.py               # frente GUI (tkinter): wizard backup/restore, barra de progresso
+    tk_available.py      # detecta se o runtime Tk existe; decide GUI vs fallback CLI
     defender_dialog.py   # janela tkinter do Defender (Windows-only)
   detect/
     distro.py            # /etc/os-release → id, família, gerenciador, estratégia
@@ -85,6 +96,25 @@ distrohop/
     browsers.json        # caminhos de perfil por browser × plataforma × empacotamento
     packages.json        # pacote por distro (+AUR/COPR/PPA), id flatpak, id winget/choco
 ```
+
+## Interface (CLI + GUI)
+
+Duas frentes sobre o mesmo motor. Nenhuma delas contém lógica de negócio.
+
+**Seleção da frente (`__main__.py`):**
+- `distrohop` sem argumento → GUI se Tk estiver disponível, senão CLI (com aviso "Tk não encontrado, usando modo texto").
+- `distrohop --cli` / qualquer subcomando (`list`, `backup`, `restore`, `resume`) → CLI direto.
+- `distrohop --gui` → força GUI; se Tk faltar, erra com a instrução exata pra instalar (`sudo pacman -S tk`, `sudo apt install python3-tk`, etc.).
+- **Windows:** duplo-clique no `distrohop.bat` → bootstrap (portão do Defender) → **GUI por padrão** (quem dá duplo-clique espera uma janela). `distrohop.bat --cli` abre no terminal.
+
+**CLI** (`ui/cli.py`): interativa com prompts, mais flags pra rodar sem perguntar (scriptável). Renderiza os eventos do motor como texto e barra de progresso ASCII. `--dry-run` funciona igual.
+
+**GUI** (`ui/gui.py`, tkinter): dois assistentes (wizards) sobre as mesmas funções do motor:
+- **Backup:** tela 1 lista o que foi detectado (navegadores/perfis, contas de IA, extras) com checkboxes → tela 2 escolhe destino(s) (pasta / mídia externa / HD secundário / partição-cofre, multi-seleção) e cifra sim/não com senha → tela 3 mostra progresso (a mesma stream de eventos do motor) e o resultado com checksums.
+- **Restore:** escolhe um bundle → mostra o `manifest.json` (o que tem dentro, cifrado ou não) → seleção do que aplicar → instala navegador se preciso → progresso.
+- Os portões perigosos aparecem como **diálogos modais** com o mesmo texto da CLI: o aviso de particionamento manual do cofre (confirmação digitada), e o portão do Defender no Windows. A GUI não afrouxa nenhuma trava do motor — ela só chama a mesma função, que recusa igual.
+
+Como o motor emite eventos por callback, a GUI roda o trabalho pesado numa thread e atualiza a tela pela fila de eventos (o padrão `queue` + `after()` do tkinter), sem travar a janela.
 
 ## Formato do bundle
 
@@ -201,21 +231,23 @@ O usuário confirma digitando por extenso que entendeu, e o app **exige** que ex
 - **Bootstrap do Defender**: a lógica de decisão (AV ativo? já excluído? Defender vs terceiro?) é testada parseando saídas de PowerShell **capturadas em fixture** (string), sem chamar PowerShell de verdade nem exigir Windows. O único ponto que toca o sistema (`Start-Process -Verb RunAs`) fica atrás de uma interface mockável.
 - **`partition.py` só contra imagem em loopback** (`losetup`), nunca disco real. Cada pré-check tem um teste que prova que ele aborta.
 - **Matriz de plataforma/distro**: `os-release` falsos de ~12 distros + caso Windows → confere estratégia (imperativa/atômica/declarativa/flatpak/winget) e id de pacote escolhidos.
+- **Motor testado direto**: como toda a lógica mora em `core/` + módulos de trabalho (sem I/O de usuário), os testes chamam o motor e conferem eventos/resultado — cobrem CLI e GUI de uma vez. A GUI em si (`gui.py`) é fina o bastante pra só ter um smoke test manual; a lógica de fallback Tk-ausente→CLI é testada mockando `tk_available`.
 - `--dry-run` em todo comando destrutivo, imprimindo exatamente o que seria escrito.
 
 Nota de ambiente: o desenvolvimento é num Linux (CachyOS), então os módulos Windows são cobertos por **teste unitário com mock/fixture** — DPAPI, AES-GCM, e a lógica do bootstrap não exigem uma máquina Windows pra validar a lógica. Um smoke test real no Windows fica como passo manual do usuário.
 
 ## Fases de implementação
 
-1. **Núcleo de detecção** — `platform_.py`, `detect/*` + `cli.py list`. Entrega: `distrohop list` mostra plataforma/distro, browsers, perfis, contas de IA, discos candidatos. Nada é escrito.
+1. **Motor + detecção + CLI** — `core/{engine,events,selection}.py`, `platform_.py`, `detect/*`, `ui/cli.py`, `__main__.py`. Entrega: `distrohop list` mostra plataforma/distro, browsers, perfis, contas de IA, discos candidatos. Estabelece a separação motor/frente desde já. Nada é escrito.
 2. **Captura + bundle (Linux)** — `capture/{profile_raw,chromium_linux,firefox,neutral,extras}.py`, `vault/{bundle,crypto,targets}.py`. Entrega: `distrohop backup` gera bundle verificado em N destinos. Porta o pipeline de cookies que já funciona.
 3. **Restore same-engine (Linux)** — `apply_raw.py` + `installer.py` imperativa/flatpak. Reinstala browser e devolve o perfil idêntico.
 4. **Restore cross-engine** — `apply_neutral.py`, com os gotchas acima como teste.
-5. **Declarativa/atômica** — `restore/nixos.py`, `resume`, dotfiles com guarda de `/nix/store`.
-6. **Windows** — `bootstrap.py`, `ui/defender_dialog.py`, `detect/windows.py`, `capture/{chromium_win,aesgcm}.py`, `restore/win_installer.py`, `distrohop.bat`. Entrega: o ciclo backup/restore rodando no Windows com o portão do Defender. Reaproveita bundle/neutral/firefox das fases anteriores.
-7. **Partição-cofre** — `vault/partition.py`. Último de propósito: é a parte perigosa e a menos essencial.
+5. **GUI** — `ui/{gui,tk_available}.py`. Wizards de backup e restore sobre o motor já pronto das fases 1–4. Como o motor já existe e é testado, a GUI é fina: só telas + fila de eventos. Inclui a lógica de fallback pra CLI quando Tk falta.
+6. **Declarativa/atômica** — `restore/nixos.py`, `resume`, dotfiles com guarda de `/nix/store`.
+7. **Windows** — `bootstrap.py`, `ui/defender_dialog.py`, `detect/windows.py`, `capture/{chromium_win,aesgcm}.py`, `restore/win_installer.py`, `distrohop.bat`. Entrega: o ciclo backup/restore rodando no Windows com o portão do Defender e a GUI por padrão no duplo-clique. Reaproveita bundle/neutral/firefox/gui das fases anteriores.
+8. **Partição-cofre** — `vault/partition.py`. Último de propósito: é a parte perigosa e a menos essencial.
 
-Fases 1–4 já resolvem a próxima troca de distro. 5–7 são acabamento (Windows e cofre).
+Fases 1–4 já resolvem a próxima troca de distro pela CLI. 5 dá a GUI. 6–8 são acabamento (NixOS, Windows, cofre).
 
 ## Verificação end-to-end
 
