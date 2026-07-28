@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 
 import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
+from tkinter import filedialog, messagebox, simpledialog, ttk
 
 from distrohop.core.engine import (
     BackupPlan,
@@ -30,8 +30,20 @@ from distrohop.core.engine import (
 from distrohop.core.events import Event
 from distrohop.core.selection import Selection
 from distrohop.detect.browsers import load_definitions
+from distrohop.ui.i18n import (
+    normalize_language,
+    system_language,
+    translate,
+    translate_block,
+)
+from distrohop.ui.preferences import (
+    load_preferences,
+    preferences_path,
+    save_preferences,
+)
 from distrohop.vault.bundle import read_manifest, verify_bundle
 from distrohop.vault import partition
+from distrohop.vault.targets import create_private_target
 
 
 LIGHT = {
@@ -203,9 +215,18 @@ class DistrohopApp:
     ) -> None:
         self.root = root
         self.inventory_loader = inventory_loader
-        self.palette: Mapping[str, str] = (
-            DARK if os.environ.get("DISTROHOP_THEME", "").casefold() == "dark" else LIGHT
+        self.preferences_file = preferences_path()
+        saved_preferences = load_preferences(self.preferences_file)
+        language_value = os.environ.get("DISTROHOP_LANGUAGE")
+        self.language = normalize_language(
+            language_value or saved_preferences.get("language") or system_language()
         )
+        theme_value = (
+            os.environ.get("DISTROHOP_THEME")
+            or saved_preferences.get("theme")
+            or "light"
+        ).casefold()
+        self.palette: Mapping[str, str] = DARK if theme_value == "dark" else LIGHT
         self.theme_name = "dark" if self.palette is DARK else "light"
         self.reduced_motion = tk.BooleanVar(value=False)
         self.inventory: Optional[Dict[str, Any]] = None
@@ -257,16 +278,23 @@ class DistrohopApp:
             textvariable=self.title_var,
             style="Header.TLabel",
         ).pack(side="left")
+        self.language_button = ttk.Button(
+            self.header,
+            text="EN" if self.language == "pt" else "PT",
+            style="Ghost.TButton",
+            command=self.toggle_language,
+        )
+        self.language_button.pack(side="right")
         self.theme_button = ttk.Button(
             self.header,
-            text="☾  Tema",
+            text=self._theme_button_text(),
             style="Ghost.TButton",
             command=self.toggle_theme,
         )
-        self.theme_button.pack(side="right")
+        self.theme_button.pack(side="right", padx=(0, 4))
         self.page_host = ttk.Frame(self.content, style="Base.TFrame")
         self.page_host.pack(fill="both", expand=True, padx=36, pady=(8, 24))
-        self.status_var = tk.StringVar(value="Preparando detecção…")
+        self.status_var = tk.StringVar(value=self.tr("Preparando detecção…"))
         ttk.Label(
             self.content,
             textvariable=self.status_var,
@@ -329,6 +357,16 @@ class DistrohopApp:
             background=colors["bg"],
             foreground=colors["muted"],
             font=(family, 9),
+        )
+        style.configure(
+            "Subtitle.TLabel",
+            background=colors["bg"],
+            foreground=colors["muted"],
+        )
+        style.configure(
+            "Danger.TLabel",
+            background=colors["bg"],
+            foreground=colors["danger"],
         )
         style.configure(
             "Accent.TButton",
@@ -457,7 +495,7 @@ class DistrohopApp:
                 canvas.create_text(
                     62,
                     y,
-                    text=label,
+                    text=self.tr(label),
                     anchor="w",
                     fill=color,
                     font=("DejaVu Sans", 10, "bold" if current else "normal"),
@@ -474,7 +512,7 @@ class DistrohopApp:
             canvas.create_text(
                 62,
                 514,
-                text="Recolher menu",
+                text=self.tr("Recolher menu"),
                 anchor="w",
                 fill=colors["muted"],
                 font=("DejaVu Sans", 9),
@@ -563,8 +601,104 @@ class DistrohopApp:
             except tk.TclError:
                 continue
         self.panels = live_panels
+        current_page = getattr(self, "current_page", None)
+        if current_page is not None:
+            self._recolor_widget_tree(current_page)
         self._draw_sidebar()
-        self.theme_button.configure(text="☀  Tema" if self.theme_name == "dark" else "☾  Tema")
+        self.theme_button.configure(text=self._theme_button_text())
+        self._save_preferences()
+
+    def tr(self, text: str) -> str:
+        return translate(text, getattr(self, "language", "pt"))
+
+    def _theme_button_text(self) -> str:
+        icon = "☀" if self.theme_name == "dark" else "☾"
+        return "{}  {}".format(icon, self.tr("Tema"))
+
+    def _save_preferences(self) -> None:
+        target = getattr(self, "preferences_file", None)
+        if target is None:
+            return
+        try:
+            save_preferences(
+                {
+                    "language": getattr(self, "language", "pt"),
+                    "theme": self.theme_name,
+                },
+                target,
+            )
+        except OSError:
+            # A read-only live environment must not make the GUI unusable.
+            pass
+
+    def toggle_language(self) -> None:
+        self.language = "en" if getattr(self, "language", "pt") == "pt" else "pt"
+        title = self.title_var.get()
+        status = self.status_var.get()
+        self.title_var.set(self.tr(title))
+        self.status_var.set(self.tr(status))
+        current_page = getattr(self, "current_page", None)
+        if current_page is not None:
+            self._translate_widget_tree(current_page)
+        self._draw_sidebar()
+        self.theme_button.configure(text=self._theme_button_text())
+        self.language_button.configure(text="EN" if self.language == "pt" else "PT")
+        self._save_preferences()
+
+    def _translate_widget_tree(self, widget: tk.Misc) -> None:
+        try:
+            children = widget.winfo_children()
+        except tk.TclError:
+            return
+        for child in children:
+            try:
+                if isinstance(child, tk.Text):
+                    state = str(child.cget("state"))
+                    content = child.get("1.0", "end-1c")
+                    translated = translate_block(content, self.language)
+                    if translated != content:
+                        child.configure(state="normal")
+                        child.delete("1.0", "end")
+                        child.insert("1.0", translated)
+                        child.configure(state=state)
+                else:
+                    try:
+                        text = child.cget("text")
+                    except tk.TclError:
+                        text = ""
+                    if isinstance(text, str) and text:
+                        translated = self.tr(text)
+                        if translated != text:
+                            child.configure(text=translated)
+                self._translate_widget_tree(child)
+            except tk.TclError:
+                continue
+
+    def _recolor_widget_tree(self, widget: tk.Misc) -> None:
+        try:
+            children = widget.winfo_children()
+        except tk.TclError:
+            return
+        for child in children:
+            try:
+                if isinstance(child, tk.Text):
+                    child.configure(
+                        background=self.palette["input"],
+                        foreground=self.palette["text"],
+                        insertbackground=self.palette["text"],
+                        selectbackground=self.palette["accent"],
+                    )
+                elif isinstance(child, tk.Listbox):
+                    child.configure(
+                        background=self.palette["input"],
+                        foreground=self.palette["text"],
+                        selectbackground=self.palette["accent"],
+                        selectforeground="#FFFFFF",
+                        highlightbackground=self.palette["border"],
+                    )
+                self._recolor_widget_tree(child)
+            except tk.TclError:
+                continue
 
     def _panel(self, parent: tk.Misc, height: int = 250) -> RoundedPanel:
         panel = RoundedPanel(parent, self.palette, height=height)
@@ -578,9 +712,10 @@ class DistrohopApp:
         builder: Callable[[ttk.Frame], None],
     ) -> None:
         self.active_view = view
-        self.title_var.set(title)
+        self.title_var.set(self.tr(title))
         new_page = ttk.Frame(self.page_host, style="Base.TFrame")
         builder(new_page)
+        self._translate_widget_tree(new_page)
         old_page = self.current_page
         self.current_page = new_page
         self.panels = [
@@ -623,7 +758,7 @@ class DistrohopApp:
         frame()
 
     def _start_inventory(self) -> None:
-        self.status_var.set("Detectando sistema, navegadores e destinos…")
+        self.status_var.set(self.tr("Detectando sistema, navegadores e destinos…"))
         self._worker(
             "inventory",
             lambda callback: self.inventory_loader(callback=callback),
@@ -634,8 +769,8 @@ class DistrohopApp:
         self.inventory = dict(result)
         distro = self.inventory.get("os", {})
         self.status_var.set(
-            "{} · {} · pronto".format(
-                distro.get("name") or "Sistema detectado",
+            self.tr("{} · {} · pronto").format(
+                distro.get("name") or self.tr("Sistema detectado"),
                 distro.get("manager") or distro.get("strategy") or "fallback",
             )
         )
@@ -643,7 +778,7 @@ class DistrohopApp:
             self.show_home()
 
     def _engine_event(self, event: Event) -> None:
-        self.status_var.set(event.message)
+        self.status_var.set(self.tr(event.message))
         if event.kind == "warn":
             self._append_log("⚠ " + event.message)
         elif event.kind in ("started", "step", "done"):
@@ -663,7 +798,10 @@ class DistrohopApp:
         on_error: Optional[Callable[[str], None]] = None,
     ) -> None:
         if token in self.handlers:
-            messagebox.showwarning("Distrohop", "Esta operação já está em andamento.")
+            messagebox.showwarning(
+                "Distrohop",
+                self.tr("Esta operação já está em andamento."),
+            )
             return
         self.busy = True
         self.handlers[token] = (
@@ -706,8 +844,11 @@ class DistrohopApp:
             self.root.after(60, self._poll_jobs)
 
     def _show_error(self, detail: str) -> None:
-        self.status_var.set("Operação interrompida com segurança")
-        messagebox.showerror("Distrohop", detail.split("\n\n", 1)[0])
+        self.status_var.set(self.tr("Operação interrompida com segurança"))
+        messagebox.showerror(
+            "Distrohop",
+            self.tr(detail.split("\n\n", 1)[0]),
+        )
         self._append_log("✕ " + detail.splitlines()[0])
 
     def _append_log(self, line: str) -> None:
@@ -715,7 +856,7 @@ class DistrohopApp:
         if widget is None or not widget.winfo_exists():
             return
         widget.configure(state="normal")
-        widget.insert("end", line + "\n")
+        widget.insert("end", self.tr(line) + "\n")
         widget.see("end")
         widget.configure(state="disabled")
 
@@ -724,8 +865,7 @@ class DistrohopApp:
         ttk.Label(
             parent,
             text=subtitle,
-            style="TLabel",
-            foreground=self.palette["muted"],
+            style="Subtitle.TLabel",
             wraplength=760,
         ).pack(anchor="w", pady=(6, 22))
 
@@ -807,7 +947,10 @@ class DistrohopApp:
 
     def show_backup_selection(self) -> None:
         if self.inventory is None:
-            messagebox.showinfo("Distrohop", "A detecção ainda está terminando.")
+            messagebox.showinfo(
+                "Distrohop",
+                self.tr("A detecção ainda está terminando."),
+            )
             return
         self.set_steps(BACKUP_STEPS, 1)
         defaults = default_selection(self.inventory)
@@ -902,6 +1045,7 @@ class DistrohopApp:
             destinations = tk.Listbox(
                 body,
                 height=5,
+                exportselection=False,
                 background=self.palette["input"],
                 foreground=self.palette["text"],
                 selectbackground=self.palette["accent"],
@@ -912,10 +1056,68 @@ class DistrohopApp:
             destinations.pack(fill="x", pady=(10, 8))
 
             def add_target() -> None:
-                selected = filedialog.askdirectory(title="Escolha um destino de backup")
+                selected = filedialog.askdirectory(
+                    title=self.tr("Escolha um destino de backup")
+                )
                 if selected and selected not in target_items:
                     target_items.append(selected)
                     destinations.insert("end", selected)
+                    destinations.selection_clear(0, "end")
+                    destinations.selection_set("end")
+                    destinations.activate("end")
+                    destinations.see("end")
+
+            def create_target() -> None:
+                selection = destinations.curselection()
+                if selection:
+                    parent = target_items[int(selection[0])]
+                elif len(target_items) == 1:
+                    parent = target_items[0]
+                else:
+                    parent = filedialog.askdirectory(
+                        title=self.tr("Escolha a pasta onde criar a subpasta")
+                    )
+                if not parent:
+                    if target_items:
+                        messagebox.showinfo(
+                            "Distrohop",
+                            self.tr(
+                                "Selecione um destino ou adicione uma pasta primeiro."
+                            ),
+                        )
+                    return
+                name = simpledialog.askstring(
+                    self.tr("Criar subpasta"),
+                    self.tr("Nome da nova pasta:"),
+                    parent=self.root,
+                )
+                if name is None:
+                    return
+                try:
+                    created = create_private_target(Path(parent), name)
+                except FileExistsError:
+                    messagebox.showwarning(
+                        "Distrohop",
+                        self.tr("A pasta já existe: {}").format(name.strip()),
+                    )
+                    return
+                except (OSError, ValueError) as error:
+                    messagebox.showerror(
+                        "Distrohop",
+                        self.tr("Não foi possível criar a pasta: {}").format(
+                            self.tr(str(error))
+                        ),
+                    )
+                    return
+                selected = str(created)
+                if selected not in target_items:
+                    target_items.append(selected)
+                    destinations.insert("end", selected)
+                index = target_items.index(selected)
+                destinations.selection_clear(0, "end")
+                destinations.selection_set(index)
+                destinations.activate(index)
+                destinations.see(index)
 
             def remove_target() -> None:
                 selection = destinations.curselection()
@@ -927,6 +1129,12 @@ class DistrohopApp:
             buttons = ttk.Frame(body, style="Panel.TFrame")
             buttons.pack(fill="x")
             ttk.Button(buttons, text="+ Adicionar pasta", style="Secondary.TButton", command=add_target).pack(side="left")
+            ttk.Button(
+                buttons,
+                text="Criar subpasta…",
+                style="Secondary.TButton",
+                command=create_target,
+            ).pack(side="left", padx=(8, 0))
             ttk.Button(buttons, text="Remover", style="Ghost.TButton", command=remove_target).pack(side="left", padx=8)
             if (self.inventory or {}).get("platform") == "linux":
                 ttk.Button(
@@ -955,12 +1163,18 @@ class DistrohopApp:
 
             def start(dry_run: bool) -> None:
                 if not target_items and not dry_run:
-                    messagebox.showwarning("Distrohop", "Adicione pelo menos um destino.")
+                    messagebox.showwarning(
+                        "Distrohop",
+                        self.tr("Adicione pelo menos um destino."),
+                    )
                     return
                 chosen_password: Optional[str] = None
                 if encrypt.get():
                     if not password.get() or password.get() != confirmation.get():
-                        messagebox.showwarning("Distrohop", "Informe duas senhas iguais e não vazias.")
+                        messagebox.showwarning(
+                            "Distrohop",
+                            self.tr("Informe duas senhas iguais e não vazias."),
+                        )
                         return
                     chosen_password = password.get()
                 self._backup_targets = tuple(Path(item) for item in target_items)
@@ -984,7 +1198,7 @@ class DistrohopApp:
 
     def show_vault_dialog(self) -> None:
         dialog = tk.Toplevel(self.root)
-        dialog.title("Distrohop · Partição-cofre")
+        dialog.title(self.tr("Distrohop · Partição-cofre"))
         dialog.geometry("720x610")
         dialog.minsize(680, 580)
         dialog.transient(self.root)
@@ -1000,8 +1214,7 @@ class DistrohopApp:
         ttk.Label(
             body,
             text=partition.WARNING,
-            style="TLabel",
-            foreground=self.palette["danger"],
+            style="Danger.TLabel",
             wraplength=650,
             justify="left",
         ).pack(anchor="w", pady=(10, 20))
@@ -1042,7 +1255,7 @@ class DistrohopApp:
             style="Secondary.TButton",
             command=lambda: bundle_var.set(
                 filedialog.askdirectory(
-                    title="Escolha a segunda cópia Distrohop",
+                    title=self.tr("Escolha a segunda cópia Distrohop"),
                     parent=dialog,
                 )
                 or bundle_var.get()
@@ -1068,7 +1281,9 @@ class DistrohopApp:
             if phrase_var.get() != partition.CONFIRMATION_PHRASE:
                 messagebox.showwarning(
                     "Distrohop",
-                    "A confirmação precisa ser digitada por extenso e sem alterações.",
+                    self.tr(
+                        "A confirmação precisa ser digitada por extenso e sem alterações."
+                    ),
                     parent=dialog,
                 )
                 return
@@ -1080,14 +1295,14 @@ class DistrohopApp:
             except (InvalidOperation, ValueError):
                 messagebox.showwarning(
                     "Distrohop",
-                    "Informe um tamanho positivo em GiB.",
+                    self.tr("Informe um tamanho positivo em GiB."),
                     parent=dialog,
                 )
                 return
             if not disk_var.get() or not bundle_var.get():
                 messagebox.showwarning(
                     "Distrohop",
-                    "Informe o disco e a segunda cópia íntegra.",
+                    self.tr("Informe o disco e a segunda cópia íntegra."),
                     parent=dialog,
                 )
                 return
@@ -1103,8 +1318,10 @@ class DistrohopApp:
                     self.show_vault_plan(plan)
                     messagebox.showwarning(
                         "Distrohop",
-                        "A GUI não eleva o aplicativo inteiro. Revise o plano e "
-                        "execute `sudo distrohop vault create ... --execute` no terminal.",
+                        self.tr(
+                            "A GUI não eleva o aplicativo inteiro. Revise o plano e "
+                            "execute `sudo distrohop vault create ... --execute` no terminal."
+                        ),
                     )
                     return
                 self._worker(
@@ -1144,6 +1361,7 @@ class DistrohopApp:
             style="Secondary.TButton",
             command=lambda: submit(False),
         ).pack(side="right", padx=(0, 8))
+        self._translate_widget_tree(body)
 
     def _plan_backup_gui(self, *, dry_run: bool, encrypted: bool) -> None:
         if self.inventory is None or self._backup_selection is None:
@@ -1199,7 +1417,10 @@ class DistrohopApp:
                 text="Procurar",
                 style="Secondary.TButton",
                 command=lambda: path_var.set(
-                    filedialog.askdirectory(title="Escolha um bundle Distrohop") or path_var.get()
+                    filedialog.askdirectory(
+                        title=self.tr("Escolha um bundle Distrohop")
+                    )
+                    or path_var.get()
                 ),
             ).pack(side="left", padx=(10, 0))
             ttk.Label(
@@ -1214,7 +1435,10 @@ class DistrohopApp:
             def load() -> None:
                 candidate = Path(path_var.get())
                 if not path_var.get():
-                    messagebox.showwarning("Distrohop", "Escolha a pasta do bundle.")
+                    messagebox.showwarning(
+                        "Distrohop",
+                        self.tr("Escolha a pasta do bundle."),
+                    )
                     return
                 self.show_progress("Validando bundle", RESTORE_STEPS, 1)
 
@@ -1258,7 +1482,10 @@ class DistrohopApp:
                 text="Procurar",
                 style="Secondary.TButton",
                 command=lambda: path_var.set(
-                    filedialog.askdirectory(title="Escolha o bundle pendente") or path_var.get()
+                    filedialog.askdirectory(
+                        title=self.tr("Escolha o bundle pendente")
+                    )
+                    or path_var.get()
                 ),
             ).pack(side="left", padx=(10, 0))
             ttk.Label(body, text="Senha, se o bundle estiver cifrado", style="Muted.Panel.TLabel").pack(anchor="w")
@@ -1269,10 +1496,16 @@ class DistrohopApp:
 
             def start(dry_run: bool) -> None:
                 if self.inventory is None:
-                    messagebox.showinfo("Distrohop", "A detecção ainda está terminando.")
+                    messagebox.showinfo(
+                        "Distrohop",
+                        self.tr("A detecção ainda está terminando."),
+                    )
                     return
                 if not path_var.get():
-                    messagebox.showwarning("Distrohop", "Escolha a pasta do bundle.")
+                    messagebox.showwarning(
+                        "Distrohop",
+                        self.tr("Escolha a pasta do bundle."),
+                    )
                     return
                 bundle = Path(path_var.get())
                 self.show_progress("Validando retomada", RESTORE_STEPS, 3)
@@ -1394,7 +1627,10 @@ class DistrohopApp:
 
             def start(dry_run: bool) -> None:
                 if not source_var.get() or not target_var.get():
-                    messagebox.showwarning("Distrohop", "Escolha os navegadores de origem e destino.")
+                    messagebox.showwarning(
+                        "Distrohop",
+                        self.tr("Escolha os navegadores de origem e destino."),
+                    )
                     return
                 index = source_labels.index(source_var.get())
                 component = components[index]
@@ -1461,7 +1697,7 @@ class DistrohopApp:
 
     def show_pending(self, result: Mapping[str, Any]) -> None:
         self.set_steps(RESTORE_STEPS, 3)
-        self.status_var.set("Aguardando preparação externa")
+        self.status_var.set(self.tr("Aguardando preparação externa"))
 
         def build(page: ttk.Frame) -> None:
             self._hero(
@@ -1610,7 +1846,7 @@ class DistrohopApp:
         steps: Sequence[Tuple[str, str]],
     ) -> None:
         self.set_steps(steps, 6)
-        self.status_var.set(heading)
+        self.status_var.set(self.tr(heading))
 
         def build(page: ttk.Frame) -> None:
             self._hero(
@@ -1634,7 +1870,13 @@ class DistrohopApp:
             for key, value in result.items():
                 if key == "warnings" and not value:
                     continue
-                summary.insert("end", "{}: {}\n".format(key, value))
+                summary.insert(
+                    "end",
+                    "{}: {}\n".format(
+                        self.tr(str(key)),
+                        self.tr(str(value)),
+                    ),
+                )
             summary.configure(state="disabled")
             ttk.Button(
                 panel.body,

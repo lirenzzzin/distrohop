@@ -14,6 +14,7 @@ Termos do conceito:
 - **cards com cantos arredondados**;
 - **glassmorphism leve**, simulado por composição de cor;
 - temas **light/dark**;
+- alternância completa **português/inglês**, inclusive eventos e erros do motor;
 - transições com **ease-in-out**.
 
 ## Layout
@@ -43,7 +44,9 @@ Termos do conceito:
   plataforma, sem ativos externos ou dependências.
 - Bordas discretas, contraste alto, espaçamento generoso e no máximo uma cor de
   destaque por tela.
-- Tema inicial segue o sistema quando detectável; escolha do usuário prevalece.
+- Idioma inicial segue o locale quando detectável.
+- Tema e idioma escolhidos são persistidos; variáveis `DISTROHOP_THEME` e
+  `DISTROHOP_LANGUAGE` podem definir o estado inicial.
 - Alertas perigosos não dependem apenas de cor: usam ícone, título e texto.
 
 ## Fluxos
@@ -76,7 +79,8 @@ fila e atualizará widgets pela thread principal.
 - `distrohop` sem argumento prefere a GUI; `--cli` e subcomandos nunca carregam
   Tk; `--gui` falha com instrução específica da distro quando o runtime falta.
 - Os assistentes expõem seleção de perfis/contas/extras, múltiplos destinos,
-  cifra, dry-run, leitura do manifesto e restore same/cross-engine.
+  criação segura de subpasta no destino selecionado, cifra, dry-run, leitura do
+  manifesto e restore same/cross-engine.
 - Trabalho pesado roda em thread daemon; eventos passam por `queue.Queue` e só
   a thread principal toca nos widgets.
 - A sidebar anima entre 232 e 72 px e cancela animações antigas quando o fluxo

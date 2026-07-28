@@ -78,9 +78,11 @@ planned read and write without creating a file.
 ./bin/distrohop
 ```
 
-The dependency-free Tk interface includes light/dark themes, animated progress,
-a collapsible sidebar, backup and restore wizards, and the guarded vault
-planner. To force a mode:
+The dependency-free Tk interface includes persistent light/dark themes, a
+complete Portuguese/English toggle, animated progress, a collapsible sidebar,
+backup and restore wizards, and the guarded vault planner. In the destination
+screen, select a folder and use **Create subfolder…** to create and select a
+private backup directory inside it. To force a mode:
 
 ```bash
 ./bin/distrohop --gui
@@ -313,9 +315,12 @@ leitura e gravação planejada sem criar nenhum arquivo.
 ./bin/distrohop
 ```
 
-A interface Tk sem dependências externas oferece temas claro/escuro, progresso
-animado, sidebar retrátil, assistentes de backup e restauração e o planejador
-protegido do cofre. Para forçar um modo:
+A interface Tk sem dependências externas oferece temas claro/escuro
+persistentes, alternância completa entre português e inglês, progresso animado,
+sidebar retrátil, assistentes de backup e restauração e o planejador protegido
+do cofre. Na tela de destino, selecione uma pasta e use **Criar subpasta…** para
+criar e selecionar dentro dela uma pasta privada para o backup. Para forçar um
+modo:
 
 ```bash
 ./bin/distrohop --gui

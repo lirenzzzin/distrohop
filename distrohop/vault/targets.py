@@ -15,6 +15,39 @@ class TargetVerificationError(RuntimeError):
     pass
 
 
+def create_private_target(parent: Path, name: str) -> Path:
+    """Create exactly one private backup directory below an existing target."""
+    parent_path = Path(parent).expanduser()
+    candidate_name = name.strip()
+    if not candidate_name:
+        raise ValueError("O nome da pasta não pode ficar vazio.")
+    if (
+        candidate_name in (".", "..")
+        or "/" in candidate_name
+        or "\\" in candidate_name
+        or Path(candidate_name).name != candidate_name
+        or any(character in candidate_name for character in '<>:"|?*\0')
+        or candidate_name.endswith((".", " "))
+    ):
+        raise ValueError("O nome deve identificar uma única pasta.")
+    stem = candidate_name.split(".", 1)[0].casefold()
+    if stem in {"con", "prn", "aux", "nul"} or (
+        len(stem) == 4
+        and stem[:3] in {"com", "lpt"}
+        and stem[3] in "123456789"
+    ):
+        raise ValueError("Esse nome de pasta é reservado no Windows.")
+    if not parent_path.is_dir():
+        raise NotADirectoryError(
+            "O destino selecionado não é uma pasta: {}".format(parent_path)
+        )
+    destination = parent_path / candidate_name
+    destination.mkdir(mode=0o700, exist_ok=False)
+    if os.name != "nt":
+        destination.chmod(0o700)
+    return destination
+
+
 def _tree_fingerprints(root: Path) -> Dict[str, str]:
     fingerprints: Dict[str, str] = {}
     for path in sorted(root.rglob("*")):

@@ -2,17 +2,32 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Iterable
+
+from distrohop.ui.i18n import normalize_language, system_language, translate
+from distrohop.ui.preferences import load_preferences
+
+
+def _dialog_language() -> str:
+    preferences = load_preferences()
+    return normalize_language(
+        os.environ.get("DISTROHOP_LANGUAGE")
+        or preferences.get("language")
+        or system_language()
+    )
 
 
 def ask_defender(app_directory: Path) -> str:
     import tkinter as tk
     from tkinter import ttk
 
+    language = _dialog_language()
+    tr = lambda text: translate(text, language)
     result = {"value": "cancel"}
     root = tk.Tk()
-    root.title("Distrohop · Windows Defender")
+    root.title(tr("Distrohop · Windows Defender"))
     root.geometry("620x420")
     root.resizable(False, False)
     root.configure(background="#F5F7FA")
@@ -20,12 +35,12 @@ def ask_defender(app_directory: Path) -> str:
     frame.pack(fill="both", expand=True)
     ttk.Label(
         frame,
-        text="Proteção transparente antes de começar",
+        text=tr("Proteção transparente antes de começar"),
         font=("Segoe UI", 18, "bold"),
     ).pack(anchor="w")
     ttk.Label(
         frame,
-        text=(
+        text=tr(
             "Este app lê cookies e senhas do navegador para migrar seus logins. "
             "Isso se parece com o comportamento de um infostealer e o Defender "
             "pode bloquear a operação.\n\n"
@@ -45,12 +60,12 @@ def ask_defender(app_directory: Path) -> str:
 
     ttk.Button(
         buttons,
-        text="Continuar sem exclusão",
+        text=tr("Continuar sem exclusão"),
         command=lambda: choose("continue"),
     ).pack(side="left")
     ttk.Button(
         buttons,
-        text="Habilitar exclusão desta pasta",
+        text=tr("Habilitar exclusão desta pasta"),
         command=lambda: choose("enable"),
     ).pack(side="right")
     root.protocol("WM_DELETE_WINDOW", lambda: choose("cancel"))
@@ -65,11 +80,13 @@ def ask_third_party(
     import tkinter as tk
     from tkinter import messagebox
 
+    language = _dialog_language()
+    tr = lambda text: translate(text, language)
     root = tk.Tk()
     root.withdraw()
     accepted = messagebox.askokcancel(
-        "Distrohop · antivírus",
-        (
+        tr("Distrohop · antivírus"),
+        tr(
             "Antivírus detectado: {}\n\n"
             "Adicione esta pasta às exclusões pelo painel do seu antivírus:\n"
             "{}\n\n"
