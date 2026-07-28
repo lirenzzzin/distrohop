@@ -207,6 +207,7 @@ See the exact detection and package behavior in
 | [Windows support](docs/WINDOWS.md) | you need DPAPI, Defender, WinGet, browser, or volume details |
 | [Vault partition](docs/VAULT.md) | you are reviewing partition safety gates |
 | [GUI design](docs/GUI-DESIGN.md) | you want the interface language and animation model |
+| [Headless VM lab](docs/VM-LAB.md) | you want repeatable Linux-family and Xvfb smoke tests with a 2 GiB ceiling |
 | [Security policy](SECURITY.md) | you found a vulnerability or need the threat boundaries |
 | [Technical specification](SPEC.md) | you want the complete behavior and architecture contract |
 
@@ -444,6 +445,7 @@ Veja a detecção e o comportamento exatos dos pacotes em
 | [Suporte Windows](docs/WINDOWS.md) | você precisa de detalhes sobre DPAPI, Defender, WinGet, navegadores ou volumes |
 | [Partição-cofre](docs/VAULT.md) | você está revisando as travas de segurança das partições |
 | [Design da GUI](docs/GUI-DESIGN.md) | você quer conhecer a linguagem visual e as animações |
+| [Laboratório headless](docs/VM-LAB.md) | você quer smoke tests repetíveis por família Linux e em Xvfb com teto de 2 GiB |
 | [Política de segurança](SECURITY.md) | você encontrou uma vulnerabilidade ou precisa dos limites de ameaça |
 | [Especificação técnica](SPEC.md) | você quer o contrato completo de arquitetura e comportamento |
 

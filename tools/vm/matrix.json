@@ -1,0 +1,116 @@
+{
+  "schema_version": 1,
+  "defaults": {
+    "memory_mb": 2048,
+    "cpus": 2,
+    "data_disk_gib": 8,
+    "guest_swap_mb": 1024
+  },
+  "distros": [
+    {
+      "id": "ubuntu-2604",
+      "name": "Ubuntu 26.04 LTS",
+      "tier": "core",
+      "automated": true,
+      "ssh_port": 22401,
+      "image_url": "https://cloud-images.ubuntu.com/releases/resolute/release/ubuntu-26.04-server-cloudimg-amd64.img",
+      "checksum_url": "https://cloud-images.ubuntu.com/releases/resolute/release/SHA256SUMS",
+      "checksum_algorithm": "sha256",
+      "setup_commands": [
+        "sudo env DEBIAN_FRONTEND=noninteractive apt-get update",
+        "sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y python3 python3-tk xvfb xauth openssl libnss3-tools util-linux e2fsprogs git rsync"
+      ]
+    },
+    {
+      "id": "debian-13",
+      "name": "Debian 13",
+      "tier": "core",
+      "automated": true,
+      "ssh_port": 22402,
+      "image_url": "https://cloud.debian.org/images/cloud/trixie/latest/debian-13-genericcloud-amd64.qcow2",
+      "checksum_url": "https://cloud.debian.org/images/cloud/trixie/latest/SHA512SUMS",
+      "checksum_algorithm": "sha512",
+      "setup_commands": [
+        "sudo env DEBIAN_FRONTEND=noninteractive apt-get update",
+        "sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y python3 python3-tk xvfb xauth openssl libnss3-tools util-linux e2fsprogs git rsync"
+      ]
+    },
+    {
+      "id": "fedora-44",
+      "name": "Fedora Cloud 44",
+      "tier": "core",
+      "automated": true,
+      "ssh_port": 22403,
+      "image_url": "https://download.fedoraproject.org/pub/fedora/linux/releases/44/Cloud/x86_64/images/Fedora-Cloud-Base-Generic-44-1.7.x86_64.qcow2",
+      "checksum_url": "https://dl.fedoraproject.org/pub/fedora/linux/releases/44/Cloud/x86_64/images/Fedora-Cloud-44-1.7-x86_64-CHECKSUM",
+      "checksum_algorithm": "sha256",
+      "setup_commands": [
+        "sudo dnf install -y python3 python3-tkinter xorg-x11-server-Xvfb xorg-x11-xauth openssl nss-tools util-linux e2fsprogs git rsync"
+      ]
+    },
+    {
+      "id": "arch",
+      "name": "Arch Linux",
+      "tier": "core",
+      "automated": true,
+      "ssh_port": 22404,
+      "image_url": "https://geo.mirror.pkgbuild.com/images/latest/Arch-Linux-x86_64-cloudimg.qcow2",
+      "checksum_url": "https://geo.mirror.pkgbuild.com/images/latest/Arch-Linux-x86_64-cloudimg.qcow2.SHA256",
+      "checksum_algorithm": "sha256",
+      "setup_commands": [
+        "sudo pacman -Syu --noconfirm --needed python tk xorg-server-xvfb xorg-xauth openssl nss util-linux e2fsprogs git rsync"
+      ]
+    },
+    {
+      "id": "opensuse-tumbleweed",
+      "name": "openSUSE Tumbleweed",
+      "tier": "core",
+      "automated": true,
+      "ssh_port": 22405,
+      "image_url": "https://download.opensuse.org/tumbleweed/appliances/openSUSE-Tumbleweed-Minimal-VM.x86_64-Cloud.qcow2",
+      "checksum_url": "https://download.opensuse.org/tumbleweed/appliances/openSUSE-Tumbleweed-Minimal-VM.x86_64-Cloud.qcow2.sha256",
+      "checksum_algorithm": "sha256",
+      "setup_commands": [
+        "sudo zypper --non-interactive refresh",
+        "sudo zypper --non-interactive install python3 python3-tk xorg-x11-server-Xvfb xauth openssl mozilla-nss-tools util-linux e2fsprogs git rsync"
+      ]
+    },
+    {
+      "id": "alpine-324",
+      "name": "Alpine Linux 3.24",
+      "tier": "core",
+      "automated": true,
+      "ssh_port": 22406,
+      "image_url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/releases/cloud/generic_alpine-3.24.1-x86_64-uefi-cloudinit-r0.qcow2",
+      "checksum_url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/releases/cloud/generic_alpine-3.24.1-x86_64-uefi-cloudinit-r0.qcow2.sha512",
+      "checksum_algorithm": "sha512",
+      "setup_commands": [
+        "sudo apk add python3 tk xvfb-run xauth font-dejavu openssl nss-tools util-linux e2fsprogs git rsync"
+      ]
+    },
+    {
+      "id": "microos",
+      "name": "openSUSE MicroOS",
+      "tier": "extended",
+      "automated": false,
+      "ssh_port": 22407,
+      "image_url": "https://download.opensuse.org/tumbleweed/appliances/openSUSE-MicroOS.x86_64-OpenStack-Cloud.qcow2",
+      "checksum_url": "https://download.opensuse.org/tumbleweed/appliances/openSUSE-MicroOS.x86_64-OpenStack-Cloud.qcow2.sha256",
+      "checksum_algorithm": "sha256",
+      "reason": "transactional-update needs a reboot-aware two-boot setup before unattended testing",
+      "setup_commands": []
+    },
+    {
+      "id": "nixos",
+      "name": "NixOS",
+      "tier": "extended",
+      "automated": false,
+      "ssh_port": 22408,
+      "image_url": "",
+      "checksum_url": "",
+      "checksum_algorithm": "sha256",
+      "reason": "the official release publishes an installer ISO; a reproducible cloud image must be generated separately",
+      "setup_commands": []
+    }
+  ]
+}
