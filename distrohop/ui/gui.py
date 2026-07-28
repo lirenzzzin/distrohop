@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import errno
 import os
 import queue
 import threading
@@ -88,6 +89,37 @@ RESTORE_STEPS = (
 
 def _ease(value: float) -> float:
     return 4 * value * value * value if value < 0.5 else 1 - pow(-2 * value + 2, 3) / 2
+
+
+def _contains_errno(value: object, expected: int, seen: Optional[set] = None) -> bool:
+    visited = set() if seen is None else seen
+    identity = id(value)
+    if identity in visited:
+        return False
+    visited.add(identity)
+    if isinstance(value, OSError) and value.errno == expected:
+        return True
+    if isinstance(value, str):
+        return expected == errno.ENOSPC and (
+            "No space left on device" in value or "Errno 28" in value
+        )
+    if isinstance(value, BaseException):
+        return any(_contains_errno(item, expected, visited) for item in value.args)
+    if isinstance(value, (list, tuple)):
+        return any(_contains_errno(item, expected, visited) for item in value)
+    return False
+
+
+def _friendly_error(error: BaseException) -> str:
+    if _contains_errno(error, errno.ENOSPC):
+        return (
+            "Espaço insuficiente no destino de trabalho. O backup foi cancelado "
+            "antes de publicar qualquer bundle. Libere espaço ou escolha outro destino."
+        )
+    message = " ".join(str(error).split())
+    if len(message) > 500:
+        message = message[:497].rstrip() + "…"
+    return message or error.__class__.__name__
 
 
 def _rounded(
@@ -521,8 +553,16 @@ class DistrohopApp:
         self.root.configure(background=self.palette["bg"])
         self.shell.configure(background=self.palette["bg"])
         self._configure_styles()
+        live_panels = []
         for panel in self.panels:
-            panel.recolor(self.palette)
+            try:
+                if not panel.winfo_exists():
+                    continue
+                panel.recolor(self.palette)
+                live_panels.append(panel)
+            except tk.TclError:
+                continue
+        self.panels = live_panels
         self._draw_sidebar()
         self.theme_button.configure(text="☀  Tema" if self.theme_name == "dark" else "☾  Tema")
 
@@ -637,7 +677,10 @@ class DistrohopApp:
                     lambda event: self.jobs.put(("event", event))
                 )
             except Exception as error:
-                detail = "{}\n\n{}".format(error, traceback.format_exc(limit=8))
+                detail = "{}\n\n{}".format(
+                    _friendly_error(error),
+                    traceback.format_exc(limit=8),
+                )
                 self.jobs.put(("error", (token, detail)))
             else:
                 self.jobs.put(("result", (token, result)))

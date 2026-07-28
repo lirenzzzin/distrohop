@@ -170,6 +170,8 @@ Read the complete [vault safety contract](docs/VAULT.md) before considering
 - Every bundle has a manifest and SHA-256 checksums.
 - Each destination is written to a temporary directory, reread, verified, and
   atomically renamed.
+- The working copy is created inside the selected destination with the most
+  free space, never in `/tmp`; capacity is checked before the first copy.
 - Restore verifies first and keeps the previous profile.
 - Passwords never appear in process arguments or resume-state files.
 - NixOS and Guix receive declarative instructions instead of imperative
@@ -403,6 +405,8 @@ considerar `--execute`.
 - Todo bundle possui manifesto e checksums SHA-256.
 - Cada destino é escrito em diretório temporário, relido, verificado e
   renomeado atomicamente.
+- A cópia de trabalho é criada dentro do destino selecionado com mais espaço,
+  nunca em `/tmp`; a capacidade é conferida antes da primeira cópia.
 - O restore verifica primeiro e mantém o perfil anterior.
 - Senhas nunca aparecem nos argumentos de processos ou estados de retomada.
 - NixOS e Guix recebem orientação declarativa em vez de mudanças imperativas.

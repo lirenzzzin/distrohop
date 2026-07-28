@@ -43,18 +43,40 @@ def publish_to_targets(
     bundle_name: str,
     *,
     require_private_permissions: bool = False,
+    adopt_source: bool = False,
 ) -> List[Path]:
     expected = _tree_fingerprints(source)
-    published: List[Path] = []
-    for target_root in targets:
-        target_root = Path(target_root)
+    target_roots = [Path(target) for target in targets]
+    for target_root in target_roots:
         target_root.mkdir(parents=True, exist_ok=True)
         destination = target_root / bundle_name
         if destination.exists():
             raise FileExistsError(str(destination))
+    published: List[Path] = []
+    copy_source = source
+    start = 0
+    if adopt_source and target_roots:
+        target_root = target_roots[0]
+        destination = target_root / bundle_name
+        if require_private_permissions and not _has_private_permissions(source):
+            raise TargetVerificationError(
+                "o destino {} não suporta permissões privadas 600/700; "
+                "use --encrypt ou outro sistema de arquivos".format(target_root)
+            )
+        os.replace(source, destination)
+        if _tree_fingerprints(destination) != expected:
+            os.replace(destination, source)
+            raise TargetVerificationError(
+                "checksum pós-escrita divergiu em {}".format(target_root)
+            )
+        published.append(destination)
+        copy_source = destination
+        start = 1
+    for target_root in target_roots[start:]:
+        destination = target_root / bundle_name
         staging = target_root / ".{}.{}.partial".format(bundle_name, uuid.uuid4().hex)
         try:
-            shutil.copytree(source, staging, copy_function=shutil.copy2)
+            shutil.copytree(copy_source, staging, copy_function=shutil.copy2)
             if _tree_fingerprints(staging) != expected:
                 raise TargetVerificationError(
                     "checksum pós-escrita divergiu em {}".format(target_root)

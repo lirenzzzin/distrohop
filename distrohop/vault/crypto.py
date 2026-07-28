@@ -191,7 +191,10 @@ def encrypt_tree(
     if destination.exists():
         raise FileExistsError(str(destination))
     destination.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix="distrohop-crypto-") as temporary:
+    with tempfile.TemporaryDirectory(
+        prefix=".distrohop-crypto-",
+        dir=str(destination.parent),
+    ) as temporary:
         archive = Path(temporary) / "bundle.tar"
         _tar_tree(source, archive)
         partial = destination.with_name(destination.name + ".partial")

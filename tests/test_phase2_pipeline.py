@@ -7,13 +7,17 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from distrohop.capture.chromium_linux import capture_profile as capture_chromium
 from distrohop.capture import extras
 from distrohop.capture.extras import PACKAGE_COMMANDS
 from distrohop.capture.firefox import capture_profile as capture_firefox
-from distrohop.capture.profile_raw import copy_path
+from distrohop.capture.profile_raw import (
+    SQLiteSnapshotBusy,
+    copy_path,
+    sqlite_snapshot,
+)
 from distrohop.core.engine import plan_backup, run_backup
 from distrohop.core.selection import Selection
 from distrohop.vault.bundle import verify_bundle
@@ -138,6 +142,27 @@ class BrowserCaptureTests(unittest.TestCase):
                 (destination / "neutral" / "cookies.jsonl").read_text(encoding="utf-8"),
             )
 
+    def test_sqlite_snapshot_has_a_bounded_wait_for_a_locked_database(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "cookies.sqlite"
+            writer = sqlite3.connect(source)
+            writer.execute("PRAGMA journal_mode=DELETE")
+            writer.execute("CREATE TABLE cookies (value TEXT)")
+            writer.commit()
+            writer.execute("BEGIN EXCLUSIVE")
+            writer.execute("INSERT INTO cookies VALUES ('busy')")
+            try:
+                with self.assertRaisesRegex(SQLiteSnapshotBusy, "ocupado"):
+                    sqlite_snapshot(
+                        source,
+                        root / "snapshot.sqlite",
+                        timeout_seconds=0.1,
+                    )
+            finally:
+                writer.rollback()
+                writer.close()
+
 
 class BackupEngineTests(unittest.TestCase):
     def test_every_linux_profile_has_a_package_inventory_strategy(self) -> None:
@@ -198,6 +223,83 @@ class BackupEngineTests(unittest.TestCase):
                     (destination / "ai" / "codex" / "codex" / "auth.json").read_text(encoding="utf-8"),
                     '{"token":"secret"}',
                 )
+
+    def test_real_backup_stages_inside_the_destination_not_system_tmp(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            account = root / ".codex"
+            account.mkdir()
+            (account / "auth.json").write_text("{}", encoding="utf-8")
+            target = root / "target"
+            inventory = {
+                "platform": "linux",
+                "os": {"id": "test", "name": "Test Linux", "manager": "apt"},
+                "browsers": [],
+                "ai_accounts": [
+                    {"tool": "codex", "slot": "codex", "path": str(account)}
+                ],
+                "disks": [],
+                "warnings": [],
+            }
+            plan = plan_backup(
+                Selection(ai_accounts=(str(account),)),
+                (target,),
+                inventory=inventory,
+                home=root,
+                bundle_name="distrohop-test",
+            )
+            real_temporary_directory = tempfile.TemporaryDirectory
+            staging_parents = []
+
+            def temporary_directory(*args, **kwargs):
+                staging_parents.append(Path(kwargs["dir"]))
+                return real_temporary_directory(*args, **kwargs)
+
+            with patch(
+                "distrohop.core.engine.tempfile.TemporaryDirectory",
+                side_effect=temporary_directory,
+            ):
+                result = run_backup(plan)
+
+            self.assertEqual(staging_parents, [target])
+            self.assertEqual(result["destinations"], [str(target / "distrohop-test")])
+            self.assertFalse(any(path.name.startswith(".distrohop-test-capture-") for path in target.iterdir()))
+
+    def test_real_backup_checks_capacity_before_copying_sources(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            account = root / ".codex"
+            account.mkdir()
+            (account / "auth.json").write_bytes(b"x" * 4096)
+            target = root / "target"
+            inventory = {
+                "platform": "linux",
+                "os": {"id": "test", "name": "Test Linux", "manager": "apt"},
+                "browsers": [],
+                "ai_accounts": [
+                    {"tool": "codex", "slot": "codex", "path": str(account)}
+                ],
+                "disks": [],
+                "warnings": [],
+            }
+            plan = plan_backup(
+                Selection(ai_accounts=(str(account),)),
+                (target,),
+                inventory=inventory,
+                home=root,
+                bundle_name="distrohop-test",
+            )
+
+            with patch(
+                "distrohop.core.engine.shutil.disk_usage",
+                return_value=Mock(total=1024, used=1023, free=1),
+            ), patch(
+                "distrohop.core.engine.extras.capture_ai_accounts"
+            ) as capture:
+                with self.assertRaisesRegex(RuntimeError, "Espaço insuficiente"):
+                    run_backup(plan)
+
+            capture.assert_not_called()
 
 
 class ExtrasCaptureTests(unittest.TestCase):

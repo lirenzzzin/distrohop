@@ -62,6 +62,7 @@ def assemble_bundle(
     encrypted: bool,
     password: Optional[str] = None,
     system: Optional[str] = None,
+    move_payload: bool = False,
 ) -> Dict[str, Any]:
     if destination.exists():
         raise FileExistsError(str(destination))
@@ -89,7 +90,9 @@ def assemble_bundle(
         else:
             for item in sorted(payload.iterdir()):
                 target = destination / item.name
-                if item.is_dir():
+                if move_payload:
+                    os.replace(item, target)
+                elif item.is_dir():
                     shutil.copytree(item, target, symlinks=False)
                 else:
                     shutil.copy2(item, target, follow_symlinks=True)

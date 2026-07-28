@@ -74,6 +74,14 @@ nunca aparecem como destinos válidos.
 - A publicação usa uma pasta temporária dentro de cada destino, releitura
   SHA-256 de todos os arquivos e rename atômico. Um nome existente nunca é
   sobrescrito.
+- A captura e a montagem usam o destino selecionado com mais espaço livre como
+  área de trabalho; dados grandes nunca passam pelo `tmpfs` de `/tmp`. Antes da
+  primeira cópia, o app estima o pico de uso com margem e confere todos os
+  destinos. O primeiro bundle verificado é promovido por rename no mesmo
+  filesystem, sem duplicar toda a árvore.
+- Snapshots SQLite têm espera limitada. Se um navegador mantiver o banco
+  ocupado ou mudando continuamente, o backup aborta com orientação para fechar
+  o navegador em vez de congelar ou publicar uma cópia inconsistente.
 
 O bundle aberto usa permissões `700` para diretórios e `600` para arquivos. A
 cifra opcional é `openssl enc -aes-256-cbc -pbkdf2 -salt`; a senha segue por

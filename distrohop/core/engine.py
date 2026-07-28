@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import re
+import shutil
 import socket
 import tempfile
 import time
@@ -34,6 +35,10 @@ from distrohop.vault.bundle import (
 )
 from distrohop.vault.crypto import sha256_file
 from distrohop.vault.targets import publish_to_targets
+
+
+_BACKUP_SPACE_MARGIN = 1.20
+_BACKUP_SPACE_RESERVE = 64 * 1024 * 1024
 
 
 @dataclass(frozen=True)
@@ -193,6 +198,89 @@ def _profile_destinations(
     return tuple(resolved)
 
 
+def _format_bytes(size: int) -> str:
+    amount = float(max(0, size))
+    units = ("B", "KiB", "MiB", "GiB", "TiB")
+    for unit in units:
+        if amount < 1024 or unit == units[-1]:
+            return "{:.1f} {}".format(amount, unit)
+        amount /= 1024
+    return "{} B".format(size)
+
+
+def _estimated_source_bytes(plan: BackupPlan) -> int:
+    total = 0
+    seen = set()
+    for value in plan.sources:
+        path = Path(value)
+        try:
+            status = path.stat()
+        except OSError:
+            continue
+        identity = (status.st_dev, status.st_ino)
+        if identity in seen or not path.is_file():
+            continue
+        seen.add(identity)
+        total += status.st_size
+    return total
+
+
+def _prepare_backup_staging(
+    plan: BackupPlan,
+    callback: EventCallback,
+) -> Path:
+    estimate = _estimated_source_bytes(plan)
+    multiplier = 3 if plan.encrypted else 1
+    required = (
+        int(estimate * multiplier * _BACKUP_SPACE_MARGIN)
+        + _BACKUP_SPACE_RESERVE
+    )
+    final_required = (
+        int(estimate * _BACKUP_SPACE_MARGIN)
+        + _BACKUP_SPACE_RESERVE
+    )
+    candidates = []
+    for target in plan.targets:
+        target.mkdir(parents=True, exist_ok=True)
+        destination = target / plan.bundle_name
+        if destination.exists():
+            raise FileExistsError(str(destination))
+        free = shutil.disk_usage(target).free
+        if free < final_required:
+            raise RuntimeError(
+                "Espaço insuficiente em {}. O bundle precisa de cerca de {} "
+                "e há {} livres.".format(
+                    target,
+                    _format_bytes(final_required),
+                    _format_bytes(free),
+                )
+            )
+        candidates.append((free, target))
+    free, selected = max(candidates, key=lambda item: item[0])
+    if free < required:
+        raise RuntimeError(
+            "Espaço insuficiente nos destinos. A montagem precisa de cerca de {} "
+            "e o maior espaço livre encontrado foi {} em {}.".format(
+                _format_bytes(required),
+                _format_bytes(free),
+                selected,
+            )
+        )
+    callback(
+        Event(
+            "step",
+            "Espaço de trabalho validado",
+            {
+                "target": str(selected),
+                "estimated_source_bytes": estimate,
+                "required_free_bytes": required,
+                "available_bytes": free,
+            },
+        )
+    )
+    return selected
+
+
 def plan_backup(
     selection: Selection,
     targets: Sequence[Path] = (),
@@ -336,7 +424,11 @@ def run_backup(
     selected_accounts = _selected_accounts(plan.inventory, plan.selection.ai_accounts)
     captured_browsers = []
     capture_warnings = []
-    with tempfile.TemporaryDirectory(prefix="distrohop-backup-") as temporary:
+    staging_target = _prepare_backup_staging(plan, callback)
+    with tempfile.TemporaryDirectory(
+        prefix=".{}-capture-".format(plan.bundle_name),
+        dir=str(staging_target),
+    ) as temporary:
         staging = Path(temporary)
         payload = staging / "payload"
         payload.mkdir(mode=0o700)
@@ -423,16 +515,31 @@ def run_backup(
             encrypted=plan.encrypted,
             password=password,
             system=platform_name,
+            move_payload=not plan.encrypted,
         )
+        if payload.exists():
+            shutil.rmtree(payload)
         callback(Event("step", "Gravando e verificando destinos"))
-        destinations = publish_to_targets(
+        ordered_targets = (staging_target,) + tuple(
+            target for target in plan.targets if target != staging_target
+        )
+        ordered_destinations = publish_to_targets(
             canonical,
-            plan.targets,
+            ordered_targets,
             plan.bundle_name,
             require_private_permissions=(
                 not plan.encrypted and platform_name == "linux"
             ),
+            adopt_source=True,
         )
+        destination_by_root = {
+            destination.parent.resolve(): destination
+            for destination in ordered_destinations
+        }
+        destinations = [
+            destination_by_root[target.resolve()]
+            for target in plan.targets
+        ]
         for destination in destinations:
             if not verify_bundle(destination):
                 raise RuntimeError("bundle publicado falhou na verificação: {}".format(destination))
