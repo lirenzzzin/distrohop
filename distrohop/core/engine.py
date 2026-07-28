@@ -19,6 +19,7 @@ from distrohop.capture.profile_raw import list_files
 from distrohop.detect import ai, browsers, disks, distro, windows
 from distrohop.platform_ import current_platform
 from distrohop.restore.apply_raw import apply_raw_profile
+from distrohop.restore.apply_neutral import apply_neutral_profile
 from distrohop.restore import installer
 from distrohop.restore.processes import is_browser_running
 from distrohop.vault.bundle import (
@@ -53,6 +54,10 @@ class RestorePlan:
     sources: Tuple[str, ...]
     outputs: Tuple[str, ...]
     encrypted: bool
+    target_browser_id: str = ""
+    target_engine: str = ""
+    mode: str = "raw"
+    warnings: Tuple[str, ...] = ()
     install_command: Tuple[str, ...] = ()
 
 
@@ -478,13 +483,14 @@ def _target_profile_for(
     inventory: Mapping[str, Any],
     component: Mapping[str, Any],
     explicit: Optional[Path],
+    target_browser_id: Optional[str] = None,
 ) -> Path:
     if explicit is not None:
         return Path(explicit)
     browsers_found = [
         item
         for item in inventory.get("browsers", [])
-        if item.get("id") == component.get("id")
+        if item.get("id") == (target_browser_id or component.get("id"))
     ]
     profiles = [
         profile
@@ -507,11 +513,35 @@ def _target_profile_for(
     )
 
 
+def _engine_for_browser(
+    browser_id: str,
+    inventory: Mapping[str, Any],
+    *,
+    fallback: Optional[str] = None,
+) -> str:
+    detected = {
+        str(item.get("engine") or "")
+        for item in inventory.get("browsers", [])
+        if item.get("id") == browser_id and item.get("engine")
+    }
+    if len(detected) == 1:
+        return detected.pop()
+    for definition in browsers.load_definitions():
+        if definition.get("id") == browser_id:
+            return str(definition.get("engine") or "")
+    if fallback:
+        return fallback
+    raise ValueError(
+        "engine do navegador de destino {} não é conhecida".format(browser_id)
+    )
+
+
 def plan_restore(
     bundle: Path,
     *,
     browser_id: Optional[str] = None,
     source_profile: Optional[str] = None,
+    target_browser_id: Optional[str] = None,
     target_profile: Optional[Path] = None,
     install: bool = False,
     inventory: Optional[Mapping[str, Any]] = None,
@@ -526,20 +556,37 @@ def plan_restore(
         raise ValueError("checksums do bundle não conferem")
     component = _select_restore_component(manifest, browser_id, source_profile)
     prefix = _component_prefix(component)
-    raw_prefix = prefix + "/raw"
+    source_engine = str(component.get("engine") or "")
+    target_id = str(target_browser_id or component.get("id") or "")
+    target_engine = _engine_for_browser(
+        target_id,
+        data,
+        fallback=source_engine if target_id == component.get("id") else None,
+    )
+    mode = "raw" if source_engine == target_engine else "neutral"
+    payload_prefix = prefix + ("/raw" if mode == "raw" else "/neutral")
     entries = manifest["files"]
-    raw_files = sorted(
+    selected_files = sorted(
         relative
         for relative in entries
-        if relative.startswith(raw_prefix + "/")
+        if relative.startswith(payload_prefix + "/")
     )
-    if not raw_files:
-        raise ValueError("o perfil selecionado não contém cópia raw")
-    target = _target_profile_for(data, component, target_profile)
+    if not selected_files:
+        raise ValueError(
+            "o perfil selecionado não contém dados {}".format(
+                "raw" if mode == "raw" else "neutros"
+            )
+        )
+    target = _target_profile_for(
+        data,
+        component,
+        target_profile,
+        target_browser_id=target_id,
+    )
     matching_browsers = [
         item
         for item in data.get("browsers", [])
-        if item.get("id") == component.get("id")
+        if item.get("id") == target_id
     ]
     installed = any(item.get("installed") is not False for item in matching_browsers)
     install_command: Tuple[str, ...] = ()
@@ -547,33 +594,63 @@ def plan_restore(
         if not install:
             raise ValueError(
                 "{} não está instalado; repita com --install".format(
-                    component.get("name") or component.get("id")
+                    target_id
                 )
             )
         install_command = installer.plan_install(
-            str(component.get("id") or ""), data.get("os", {})
+            target_id, data.get("os", {})
         )
-    outputs = tuple(
-        str(target / PurePosixPath(relative).relative_to(raw_prefix))
-        for relative in raw_files
-    ) + (
-        "{}.distrohop-before-<data>".format(target),
-    )
+    if mode == "raw":
+        outputs = tuple(
+            str(target / PurePosixPath(relative).relative_to(payload_prefix))
+            for relative in selected_files
+        )
+        warnings: Tuple[str, ...] = ()
+    elif target_engine == "firefox":
+        outputs = (
+            str(target / "cookies.sqlite"),
+            str(target / "places.sqlite"),
+            str(target / "distrohop-logins.csv"),
+        )
+        warnings = (
+            "Senhas não são importadas automaticamente entre engines.",
+            "Alguns sites podem exigir novo login por dados presos ao localStorage.",
+        )
+    else:
+        outputs = (
+            str(target / "Network" / "Cookies"),
+            str(target / "Bookmarks"),
+            str(target / "distrohop-logins.csv"),
+        )
+        warnings = (
+            "Senhas não são importadas automaticamente entre engines.",
+            "Alguns sites podem exigir novo login por dados presos ao localStorage.",
+        )
+    outputs += ("{}.distrohop-before-<data>".format(target),)
     callback(
         Event(
             "plan",
             "Plano de restauração criado",
-            {"browser": component.get("id"), "files": len(raw_files)},
+            {
+                "browser": component.get("id"),
+                "target_browser": target_id,
+                "mode": mode,
+                "files": len(selected_files),
+            },
         )
     )
     return RestorePlan(
         bundle=bundle,
         component=component,
         target_profile=target,
-        raw_prefix=raw_prefix,
-        sources=tuple(str(bundle / relative) for relative in raw_files),
+        raw_prefix=payload_prefix,
+        sources=tuple(str(bundle / relative) for relative in selected_files),
         outputs=outputs,
         encrypted=bool(manifest.get("encrypted")),
+        target_browser_id=target_id,
+        target_engine=target_engine,
+        mode=mode,
+        warnings=warnings,
         install_command=install_command,
     )
 
@@ -585,7 +662,7 @@ def run_restore(
     callback: EventCallback = discard_event,
     running_check=is_browser_running,
 ) -> Dict[str, Any]:
-    browser_id = str(plan.component.get("id") or "")
+    browser_id = plan.target_browser_id or str(plan.component.get("id") or "")
     if running_check(browser_id):
         raise RuntimeError(
             "{} está aberto; feche todas as janelas antes do restore".format(
@@ -605,15 +682,36 @@ def run_restore(
     with materialize_payload(plan.bundle, password=password) as payload:
         if not verify_materialized_payload(plan.bundle, payload):
             raise ValueError("checksums do payload decriptado não conferem")
-        raw = payload / PurePosixPath(plan.raw_prefix)
-        callback(
-            Event(
-                "step",
-                "Aplicando perfil raw",
-                {"source": str(raw), "target": str(plan.target_profile)},
+        source = payload / PurePosixPath(plan.raw_prefix)
+        if plan.mode == "raw":
+            callback(
+                Event(
+                    "step",
+                    "Aplicando perfil raw",
+                    {"source": str(source), "target": str(plan.target_profile)},
+                )
             )
-        )
-        result = apply_raw_profile(raw, plan.target_profile)
-    result.update({"browser": browser_id, "mode": "raw"})
+            result = apply_raw_profile(source, plan.target_profile)
+        else:
+            callback(
+                Event(
+                    "step",
+                    "Convertendo perfil entre engines",
+                    {
+                        "source": str(source),
+                        "target": str(plan.target_profile),
+                        "target_engine": plan.target_engine,
+                    },
+                )
+            )
+            result = apply_neutral_profile(
+                source,
+                plan.target_profile,
+                source_engine=str(plan.component.get("engine") or ""),
+                target_engine=plan.target_engine,
+            )
+            for warning in result.get("warnings", ()):
+                callback(Event("warn", str(warning)))
+    result.update({"browser": browser_id, "mode": plan.mode})
     callback(Event("done", "Restore concluído", result))
     return result

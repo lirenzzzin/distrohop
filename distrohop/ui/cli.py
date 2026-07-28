@@ -75,6 +75,10 @@ def build_parser() -> argparse.ArgumentParser:
     restore.add_argument("bundle", help="pasta do bundle Distrohop")
     restore.add_argument("--browser", help="ID do navegador de origem")
     restore.add_argument("--source-profile", help="nome do perfil dentro do bundle")
+    restore.add_argument(
+        "--target-browser",
+        help="ID do navegador de destino; ativa conversão quando a engine muda",
+    )
     restore.add_argument("--target-profile", help="pasta do perfil de destino")
     restore.add_argument(
         "--install",
@@ -174,11 +178,19 @@ def render_restore_plan(plan: Any) -> str:
         "DRY-RUN — nenhum arquivo será alterado.",
         "Bundle: {}".format(plan.bundle),
         "Navegador: {}".format(plan.component.get("name") or plan.component.get("id")),
+        "Destino: {} ({}, modo {})".format(
+            plan.target_browser_id,
+            plan.target_engine,
+            plan.mode,
+        ),
         "Perfil de destino: {}".format(plan.target_profile),
         "Cifra: {}".format("sim" if plan.encrypted else "não"),
     ]
     if plan.install_command:
         lines.extend(("", "INSTALAÇÃO:", "  {}".format(" ".join(plan.install_command))))
+    if plan.warnings:
+        lines.extend(("", "AVISOS:"))
+        lines.extend("  ! {}".format(warning) for warning in plan.warnings)
     lines.extend(("", "LEITURAS:"))
     lines.extend("  {}".format(path) for path in plan.sources)
     lines.extend(("", "GRAVAÇÕES/MOVIMENTAÇÕES PLANEJADAS:"))
@@ -330,6 +342,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 Path(args.bundle),
                 browser_id=args.browser,
                 source_profile=args.source_profile,
+                target_browser_id=args.target_browser,
                 target_profile=Path(args.target_profile) if args.target_profile else None,
                 install=args.install,
                 inventory=inventory,

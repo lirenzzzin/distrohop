@@ -57,6 +57,61 @@ def _aes_cbc_decrypt(
     return result.stdout
 
 
+def _aes_cbc_encrypt(
+    plaintext: bytes,
+    key: bytes,
+    runner: Callable[..., subprocess.CompletedProcess] = subprocess.run,
+) -> bytes:
+    try:
+        result = runner(
+            [
+                "openssl",
+                "enc",
+                "-aes-128-cbc",
+                "-K",
+                key.hex(),
+                "-iv",
+                LINUX_IV.hex(),
+            ],
+            input=plaintext,
+            check=False,
+            capture_output=True,
+        )
+    except OSError as error:
+        raise ChromiumDecryptionError("openssl não está disponível") from error
+    if result.returncode:
+        detail = result.stderr.decode("utf-8", errors="replace").strip()
+        raise ChromiumDecryptionError(
+            "OpenSSL não cifrou o valor: {}".format(detail)
+        )
+    return result.stdout
+
+
+def encrypt_chromium_bytes(
+    plaintext: bytes,
+    *,
+    host_key: str = "",
+    modern_cookie: bool = False,
+    secret: bytes = b"peanuts",
+    version: bytes = b"v10",
+    runner: Callable[..., subprocess.CompletedProcess] = subprocess.run,
+) -> bytes:
+    """Create a Linux Chromium v10/v11 value accepted by the matching key."""
+    if version not in (b"v10", b"v11"):
+        raise ValueError("versão Chromium de cifra não suportada")
+    payload = plaintext
+    if modern_cookie and host_key:
+        payload = hashlib.sha256(host_key.encode("utf-8")).digest() + payload
+    return version + _aes_cbc_encrypt(payload, derive_key(secret), runner)
+
+
+def encrypt_chromium_value(
+    plaintext: str,
+    **kwargs: Any,
+) -> bytes:
+    return encrypt_chromium_bytes(plaintext.encode("utf-8"), **kwargs)
+
+
 def strip_cookie_domain_hash(plaintext: bytes, host_key: str) -> bytes:
     """Strip Chrome 130+'s SHA-256(host_key) prefix, but never guess."""
     if host_key and len(plaintext) >= 32:

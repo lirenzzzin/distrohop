@@ -4,10 +4,11 @@ Migração segura de perfis de navegador e credenciais de ferramentas de IA
 entre distribuições Linux. Windows será adicionado numa fase posterior.
 
 O projeto está sendo implementado na ordem definida em `SPEC.md`. As Fases 1 a
-3 fornecem inventário, backup e restore same-engine no Linux: cópia raw do perfil,
+4 fornecem inventário, backup e restore no Linux: cópia raw do perfil,
 cookies/senhas/favoritos neutros, contas de IA, SSH/GPG/dotfiles, inventário de
 pacotes, cifra opcional, gravação verificada em múltiplos destinos e restauração
-atômica com cópia de segurança obrigatória do perfil anterior.
+atômica same-engine ou conversão Chromium↔Firefox, sempre com cópia de segurança
+obrigatória do perfil anterior.
 
 Requisitos atuais:
 
@@ -29,6 +30,8 @@ Uso a partir do código-fonte:
 ./bin/distrohop backup --target /mnt/hd1 --target /mnt/hd2 --encrypt
 ./bin/distrohop restore /mnt/hd1/distrohop-meu-pc-20260728-1200 --dry-run
 ./bin/distrohop restore /mnt/hd1/distrohop-meu-pc-20260728-1200 --browser firefox
+./bin/distrohop restore /mnt/hd1/distrohop-meu-pc-20260728-1200 \
+  --browser brave --target-browser zen --dry-run
 python3 -m distrohop list
 ```
 
@@ -45,6 +48,13 @@ checksums e troca o perfil de forma atômica. O perfil anterior fica ao lado do
 novo com sufixo `.distrohop-before-<data>`. Se o navegador estiver ausente,
 `--install` usa receita nativa verificada pela distribuição e cai para Flatpak
 quando necessário.
+
+Ao trocar de engine com `--target-browser`, cookies e favoritos são convertidos
+para o banco nativo do destino. A conversão preserva os epochs distintos de
+Chromium/Firefox e o prefixo criptográfico exigido pelo Chromium moderno.
+Senhas ficam em `distrohop-logins.csv` para importação manual, pois os cofres
+NSS e Chromium não são intercambiáveis; sessões baseadas em `localStorage`
+podem exigir novo login.
 
 Compatibilidade detalhada: [docs/LINUX-COMPATIBILITY.md](docs/LINUX-COMPATIBILITY.md).
 Direção visual da GUI: [docs/GUI-DESIGN.md](docs/GUI-DESIGN.md).
