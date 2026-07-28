@@ -8,13 +8,15 @@ version = "0.1.0"
 description = "Migração local e verificável de perfis entre Linux e Windows"
 readme = "README.md"
 requires-python = ">=3.9"
+license = {file = "LICENSE"}
 authors = [
-  {name = "Distrohop contributors"},
+  {name = "Lina"},
 ]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Environment :: Console",
   "Environment :: Win32 (MS Windows)",
+  "License :: OSI Approved :: Apache Software License",
   "Operating System :: Microsoft :: Windows",
   "Operating System :: POSIX :: Linux",
   "Programming Language :: Python :: 3",

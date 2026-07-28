@@ -1,100 +1,471 @@
-# distrohop
+<p align="center">
+  <img src="assets/hero.svg" width="100%" alt="DistroHop moves a verified encrypted bundle between Linux distributions and Windows">
+</p>
 
-Migração segura de perfis de navegador e credenciais de ferramentas de IA
-entre distribuições Linux e Windows.
+<p align="center">
+  <a href="#en"><b>English</b></a> · <a href="#pt">Português</a>
+</p>
 
-As oito fases fornecem inventário, backup e restore por CLI e GUI: cópia raw do perfil,
-cookies/senhas/favoritos neutros, contas de IA, SSH/GPG/dotfiles, inventário de
-pacotes, cifra opcional, gravação verificada em múltiplos destinos e restauração
-atômica same-engine ou conversão Chromium↔Firefox, sempre com cópia de segurança
-obrigatória do perfil anterior.
+<a id="en"></a>
 
-Requisitos atuais:
+<h1 align="center">DistroHop</h1>
 
-- Python 3.9 ou superior;
-- somente biblioteca padrão;
-- Linux: `lsblk` para inventário de discos e `openssl` para cifra do bundle e
-  dados Chromium;
-- Windows: Python oficial com Tk, PowerShell, DPAPI/Crypt32 e WinGet (Chocolatey
-  é fallback);
-- `libnss3` para senhas Firefox/Zen (sem ela, o restante continua com aviso);
-- `secret-tool` ou `kwallet-query` para dados Chromium `v11` (sem acesso ao
-  keyring, a cópia raw continua e as credenciais afetadas são avisadas).
+<p align="center">
+  Move browser profiles, AI tool accounts, and developer data safely.<br>
+  One app for Linux distributions and Windows, with verified backup and restore.
+</p>
 
-Uso a partir do código-fonte:
+<p align="center">
+  <a href="https://github.com/lirenzzzin/distrohop/actions/workflows/tests.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/lirenzzzin/distrohop/tests.yml?branch=main&amp;style=flat-square&amp;label=checks&amp;color=6D8DFF"></a>
+  <img alt="Python 3.9+" src="https://img.shields.io/badge/Python-3.9%2B-2962FF?style=flat-square">
+  <img alt="Linux and Windows" src="https://img.shields.io/badge/platform-Linux%20%7C%20Windows-16865C?style=flat-square">
+  <a href="LICENSE"><img alt="Apache License 2.0" src="https://img.shields.io/badge/license-Apache--2.0-A78BFA?style=flat-square"></a>
+</p>
 
-```sh
+> [!WARNING]
+> DistroHop is alpha software that handles browser sessions, passwords, keys,
+> and partition tables. Start with `--dry-run`, keep an independent backup, and
+> read the [security model](SECURITY.md) before using real data. The vault
+> feature is Linux-only and must never be your only copy.
+
+## What you get
+
+| Discover | Protect | Restore |
+| --- | --- | --- |
+| Finds the current OS, distro family, browsers, AI tools, developer data, packages, and safe destination disks. | Creates a checksummed bundle, optionally encrypted, and verifies every copy before publishing it. | Restores same-engine profiles atomically or converts portable data between Chromium and Firefox engines. |
+
+DistroHop currently understands:
+
+- Brave, Chrome, Chromium, Edge, Firefox, and Zen profiles;
+- Claude, Codex, Gemini, and Kimi account/configuration directories;
+- SSH, GPG, selected dotfiles, and installed-package inventories;
+- 20 Linux platform strategies, including traditional, atomic, immutable, and
+  declarative systems; and
+- Windows browser paths, DPAPI-protected Chromium data, WinGet, Defender, and
+  secondary volumes.
+
+An unknown Linux distribution is not a fatal error. DistroHop detects
+capabilities and uses a conservative Flatpak/manual fallback instead of
+guessing a destructive package-manager command.
+
+## Quick start
+
+### 1. Check the requirements
+
+- Python **3.9 or newer** with Tk for the graphical interface;
+- Linux: `lsblk`/util-linux and OpenSSL;
+- optional on Linux: NSS for Firefox/Zen passwords and Secret Service or
+  KWallet access for newer Chromium secrets; and
+- Windows: the official Python distribution with Tk and PowerShell.
+
+No third-party Python package is required.
+
+### 2. Clone and inspect the machine
+
+```bash
 git clone https://github.com/lirenzzzin/distrohop.git
 cd distrohop
 ./bin/distrohop list
-./bin/distrohop list --json
 ./bin/distrohop backup --dry-run
-./bin/distrohop backup --target /run/media/usuario/BACKUP
-./bin/distrohop backup --target /mnt/hd1 --target /mnt/hd2 --encrypt
-./bin/distrohop restore /mnt/hd1/distrohop-meu-pc-20260728-1200 --dry-run
-./bin/distrohop restore /mnt/hd1/distrohop-meu-pc-20260728-1200 --browser firefox
-./bin/distrohop restore /mnt/hd1/distrohop-meu-pc-20260728-1200 \
-  --browser brave --target-browser zen --dry-run
-python3 -m distrohop list
 ```
 
-Não há dependência Python externa. Quem preferir um comando instalado pode usar
-`python -m pip install --no-deps .`; isso só empacota o mesmo código e os JSONs
-de dados. Em live USB ou ambiente minimalista, o launcher acima funciona sem
-instalação.
+`list` shows what DistroHop recognized. The backup dry run enumerates every
+planned read and write without creating a file.
 
-No Windows, extraia a pasta e abra `distrohop.bat`. O launcher encontra Python
-3.9+, executa primeiro o portão transparente do antivírus e abre a GUI. Use
-`distrohop.bat --cli list` para o modo texto. O app nunca desativa o Defender:
-só pode pedir, após consentimento explícito e UAC, a exclusão exata da própria
-pasta.
+### 3. Open the graphical app
 
-`backup --dry-run` não cria pastas nem arquivos e enumera cada origem e saída.
-Backup real nunca sobrescreve um bundle existente. Sem `--encrypt`, todo o
-conteúdo fica legível para quem acessar o disco e recebe permissões `600/700`.
-Com `--encrypt`, a senha é solicitada sem eco ou lida por `--password-file`;
-ela nunca é aceita como argumento de linha de comando. `manifest.json` continua
-em claro por projeto. No Linux, a cifra usa OpenSSL AES-256-CBC/PBKDF2; no
-Windows, um contêiner AES-256-GCM/PBKDF2 autenticado e em blocos.
+```bash
+./bin/distrohop
+```
 
-`restore --dry-run` enumera arquivo por arquivo sem alterar o perfil. O restore
-recusa continuar enquanto o navegador estiver aberto, verifica todos os
-checksums e troca o perfil de forma atômica. O perfil anterior fica ao lado do
-novo com sufixo `.distrohop-before-<data>`. Se o navegador estiver ausente,
-`--install` usa receita nativa verificada pela distribuição e cai para Flatpak
-quando necessário.
+The dependency-free Tk interface includes light/dark themes, animated progress,
+a collapsible sidebar, backup and restore wizards, and the guarded vault
+planner. To force a mode:
 
-Ao trocar de engine com `--target-browser`, cookies e favoritos são convertidos
-para o banco nativo do destino. A conversão preserva os epochs distintos de
-Chromium/Firefox e o prefixo criptográfico exigido pelo Chromium moderno.
-Senhas ficam em `distrohop-logins.csv` para importação manual, pois os cofres
-NSS e Chromium não são intercambiáveis; sessões baseadas em `localStorage`
-podem exigir novo login.
+```bash
+./bin/distrohop --gui
+./bin/distrohop --cli list
+```
 
-Sem argumentos, `./bin/distrohop` abre a GUI quando Tk está disponível. Use
-`--cli` ou qualquer subcomando para o modo texto e `--gui` para exigir a
-interface gráfica. Se Tk faltar, o launcher mostra o comando de instalação
-adequado à distribuição e cai para a CLI. A GUI oferece os mesmos planos e
-travas do motor, com temas claro/escuro, sidebar auto-retrátil e progresso
-animado sem bloquear a janela.
+On Windows, extract or clone the folder and double-click `distrohop.bat`, or
+use:
 
-Em NixOS/Guix/blendOS, o app gera orientação declarativa em vez de instalar
-imperativamente. Em rpm-ostree e transactional-update, a instalação cria um
-estado claro de retomada e exige um boot novo antes de aplicar dados.
-`distrohop resume <bundle>` revalida ambiente e checksums antes de continuar.
-Dotfiles apontando para `/nix/store` são desviados para
-`.distrohop-restore`, e caminhos de binários Nix no backup são sanitizados sem
-alterar o arquivo original.
+```bat
+distrohop.bat --cli list
+distrohop.bat --cli backup --dry-run
+```
 
-No Linux, `distrohop vault create` planeja a partição-cofre em modo dry-run por
-padrão. A execução exige `--execute`, root, confirmação digitada por extenso e
-uma segunda cópia íntegra em outro disco. O motor prefere espaço GPT livre; só
-encolhe a última partição quando ela é Btrfs single-device, tem 20% de margem e
-não há balance, scrub ou snapshot/send em andamento. Ext4/XFS são recusados com
-orientação para live USB/GParted. O cofre nunca altera bootloader, `fstab` ou a
-ordem das partições.
+The Windows launcher never disables Defender. With explicit consent and a UAC
+prompt, it can request an exclusion for the exact DistroHop folder only.
 
-Compatibilidade detalhada: [docs/LINUX-COMPATIBILITY.md](docs/LINUX-COMPATIBILITY.md).
-Comportamento no Windows: [docs/WINDOWS.md](docs/WINDOWS.md).
-Partição-cofre e suas travas: [docs/VAULT.md](docs/VAULT.md).
-Direção visual da GUI: [docs/GUI-DESIGN.md](docs/GUI-DESIGN.md).
+### 4. Create a verified backup
+
+```bash
+# One destination
+./bin/distrohop backup --target /run/media/user/BACKUP
+
+# Two independently verified copies, encrypted with a prompted password
+./bin/distrohop backup \
+  --target /mnt/drive-one \
+  --target /mnt/drive-two \
+  --encrypt
+```
+
+A real backup never overwrites an existing bundle. Open bundles use private
+file permissions, but their contents remain readable to anyone with disk
+access; use `--encrypt` for sensitive data. Passwords are prompted without echo
+or read from a private `--password-file`—never from a command-line argument.
+
+### 5. Restore on the destination
+
+Always inspect the plan first:
+
+```bash
+./bin/distrohop restore /media/user/BACKUP/distrohop-my-pc-DATE --dry-run
+./bin/distrohop restore /media/user/BACKUP/distrohop-my-pc-DATE
+```
+
+For a different browser engine:
+
+```bash
+./bin/distrohop restore /path/to/bundle \
+  --browser brave \
+  --target-browser firefox \
+  --dry-run
+```
+
+DistroHop checks every file and refuses to modify a profile while its browser
+is running. The previous profile is preserved beside the replacement with a
+`.distrohop-before-*` suffix.
+
+Cookies and bookmarks can cross browser engines. Passwords are exported to
+`distrohop-logins.csv` for manual import because Chromium and Firefox vaults
+are not interchangeable. Some sessions and device-bound credentials require a
+new login by design.
+
+### 6. Plan a Linux vault partition
+
+```bash
+./bin/distrohop vault create \
+  --disk /dev/sdX \
+  --size-gib 32 \
+  --backup /media/other-disk/distrohop-bundle \
+  --dry-run
+```
+
+Execution additionally requires `--execute`, root, a long confirmation phrase,
+and a second verified bundle on another disk. The planner accepts GPT free
+space or a tightly constrained shrink of the final single-device Btrfs
+partition. It refuses Ext4/XFS shrinking, unsafe Btrfs states, insufficient
+margin, system-disk ambiguity, and stale plans. It never edits the bootloader
+or `fstab`.
+
+Read the complete [vault safety contract](docs/VAULT.md) before considering
+`--execute`.
+
+## How it stays safe
+
+- SQLite databases are copied through consistent snapshots, including WAL
+  contents.
+- Every bundle has a manifest and SHA-256 checksums.
+- Each destination is written to a temporary directory, reread, verified, and
+  atomically renamed.
+- Restore verifies first and keeps the previous profile.
+- Passwords never appear in process arguments or resume-state files.
+- NixOS and Guix receive declarative instructions instead of imperative
+  package changes.
+- rpm-ostree and transactional-update systems require a new boot before
+  resuming.
+- The partition vault defaults to read-only planning and revalidates disk
+  sectors immediately before formatting.
+
+## Linux compatibility
+
+| Strategy | Families and examples |
+| --- | --- |
+| APT | Debian, Ubuntu, Mint, Pop!_OS, elementary, Zorin, Kali, MX, Deepin |
+| pacman | Arch, CachyOS, Manjaro, EndeavourOS, Garuda, Artix, KaOS |
+| DNF/RPM | Fedora, RHEL, CentOS, Rocky, AlmaLinux, Oracle Linux, Nobara |
+| Zypper | openSUSE Leap, Tumbleweed, Slowroll, SLES, SLED |
+| Other native | Alpine, Void, Gentoo, Solus, Clear Linux, Slackware, Mageia, PCLinuxOS |
+| Atomic/immutable | Silverblue, Kinoite, Bazzite, Bluefin, Aurora, CoreOS, MicroOS, Aeon, Kalpa, Vanilla OS, SteamOS, Endless OS |
+| Declarative | NixOS, GNU Guix, blendOS |
+| Unknown distro | capability detection, then safe Flatpak/manual guidance |
+
+See the exact detection and package behavior in
+[Linux compatibility](docs/LINUX-COMPATIBILITY.md).
+
+## Documentation
+
+| Guide | Use it when… |
+| --- | --- |
+| [Linux compatibility](docs/LINUX-COMPATIBILITY.md) | you need the distro matrix, detection rules, or atomic/declarative behavior |
+| [Windows support](docs/WINDOWS.md) | you need DPAPI, Defender, WinGet, browser, or volume details |
+| [Vault partition](docs/VAULT.md) | you are reviewing partition safety gates |
+| [GUI design](docs/GUI-DESIGN.md) | you want the interface language and animation model |
+| [Security policy](SECURITY.md) | you found a vulnerability or need the threat boundaries |
+| [Technical specification](SPEC.md) | you want the complete behavior and architecture contract |
+
+## Development and validation
+
+```bash
+python3 -m unittest discover -v
+python3 -m compileall -q distrohop tests
+python3 -m pip install --no-deps .
+```
+
+The test suite covers detection, capture, bundles, cryptography, atomic
+restore, cross-engine conversion, GUI behavior, NixOS/atomic flows, Windows
+fixtures, and the vault planner. AES-GCM is checked against NIST vectors.
+
+The project is tested in CI on Linux and Windows. A physical Windows smoke test,
+release signing, and reputation checks are still required before distributing
+trusted Windows executables.
+
+## Security
+
+Do not attach real bundles, profiles, cookies, `Local State`, keys, tokens, or
+disk images to a public issue. Report vulnerabilities privately through
+**Security → Advisories → New draft security advisory** in this repository.
+
+## License and credit
+
+Created by **Lina** and licensed under the
+[Apache License 2.0](LICENSE). You may use, modify, and distribute DistroHop,
+including commercially, under the license terms.
+
+DistroHop is independent and is not affiliated with any Linux distribution,
+browser vendor, AI provider, Microsoft, or the projects mentioned in its
+documentation.
+
+<br>
+
+---
+
+<a id="pt"></a>
+
+<p align="center">
+  <a href="#en">English</a> · <b>Português</b>
+</p>
+
+<h1 align="center">DistroHop</h1>
+
+<p align="center">
+  Migre perfis de navegador, contas de ferramentas de IA e dados de desenvolvimento com segurança.<br>
+  Um único app para distribuições Linux e Windows, com backup e restauração verificados.
+</p>
+
+> [!WARNING]
+> O DistroHop é um software alfa que manipula sessões de navegador, senhas,
+> chaves e tabelas de partição. Comece com `--dry-run`, mantenha um backup
+> independente e leia o [modelo de segurança](SECURITY.md) antes de usar dados
+> reais. O cofre é exclusivo do Linux e nunca pode ser sua única cópia.
+
+## O que você ganha
+
+| Detectar | Proteger | Restaurar |
+| --- | --- | --- |
+| Encontra o sistema, a família da distro, navegadores, ferramentas de IA, dados de desenvolvimento, pacotes e discos de destino seguros. | Cria um bundle com checksums, cifra opcional e verificação de cada cópia antes da publicação. | Restaura perfis da mesma engine atomicamente ou converte dados portáveis entre Chromium e Firefox. |
+
+O DistroHop reconhece atualmente:
+
+- perfis do Brave, Chrome, Chromium, Edge, Firefox e Zen;
+- diretórios de contas/configurações do Claude, Codex, Gemini e Kimi;
+- SSH, GPG, dotfiles selecionados e inventários de pacotes instalados;
+- 20 estratégias Linux, incluindo sistemas tradicionais, atômicos, imutáveis e
+  declarativos; e
+- caminhos de navegador, DPAPI do Chromium, WinGet, Defender e volumes
+  secundários do Windows.
+
+Uma distribuição Linux desconhecida não causa erro fatal. O DistroHop detecta
+capacidades e usa um fallback conservador por Flatpak ou orientação manual em
+vez de adivinhar comandos destrutivos do gerenciador de pacotes.
+
+## Início rápido
+
+### 1. Confira os requisitos
+
+- Python **3.9 ou mais recente** com Tk para a interface gráfica;
+- Linux: `lsblk`/util-linux e OpenSSL;
+- opcionais no Linux: NSS para senhas do Firefox/Zen e Secret Service ou
+  KWallet para segredos Chromium recentes; e
+- Windows: distribuição oficial do Python com Tk e PowerShell.
+
+Não existe dependência Python de terceiros.
+
+### 2. Clone e inspecione a máquina
+
+```bash
+git clone https://github.com/lirenzzzin/distrohop.git
+cd distrohop
+./bin/distrohop list
+./bin/distrohop backup --dry-run
+```
+
+`list` mostra tudo que o DistroHop reconheceu. O dry run do backup enumera cada
+leitura e gravação planejada sem criar nenhum arquivo.
+
+### 3. Abra o aplicativo gráfico
+
+```bash
+./bin/distrohop
+```
+
+A interface Tk sem dependências externas oferece temas claro/escuro, progresso
+animado, sidebar retrátil, assistentes de backup e restauração e o planejador
+protegido do cofre. Para forçar um modo:
+
+```bash
+./bin/distrohop --gui
+./bin/distrohop --cli list
+```
+
+No Windows, extraia ou clone a pasta e abra `distrohop.bat`, ou use:
+
+```bat
+distrohop.bat --cli list
+distrohop.bat --cli backup --dry-run
+```
+
+O launcher do Windows nunca desativa o Defender. Com consentimento explícito e
+uma confirmação UAC, ele pode solicitar uma exclusão somente para a pasta exata
+do DistroHop.
+
+### 4. Crie um backup verificado
+
+```bash
+# Um destino
+./bin/distrohop backup --target /run/media/usuario/BACKUP
+
+# Duas cópias verificadas de forma independente, cifradas com senha solicitada
+./bin/distrohop backup \
+  --target /mnt/disco-um \
+  --target /mnt/disco-dois \
+  --encrypt
+```
+
+Um backup real nunca sobrescreve um bundle existente. Bundles abertos usam
+permissões privadas, mas o conteúdo permanece legível para quem acessar o
+disco; use `--encrypt` com dados sensíveis. A senha é solicitada sem eco ou
+lida de um `--password-file` privado — nunca de um argumento de linha de
+comando.
+
+### 5. Restaure no destino
+
+Sempre confira o plano primeiro:
+
+```bash
+./bin/distrohop restore /media/usuario/BACKUP/distrohop-meu-pc-DATA --dry-run
+./bin/distrohop restore /media/usuario/BACKUP/distrohop-meu-pc-DATA
+```
+
+Para trocar a engine do navegador:
+
+```bash
+./bin/distrohop restore /caminho/do/bundle \
+  --browser brave \
+  --target-browser firefox \
+  --dry-run
+```
+
+O DistroHop verifica todos os arquivos e recusa alterar um perfil enquanto o
+navegador estiver aberto. O perfil anterior fica preservado ao lado da
+substituição com um sufixo `.distrohop-before-*`.
+
+Cookies e favoritos podem atravessar engines. Senhas são exportadas para
+`distrohop-logins.csv` para importação manual porque os cofres do Chromium e
+Firefox não são intercambiáveis. Algumas sessões e credenciais vinculadas ao
+dispositivo exigem novo login por projeto.
+
+### 6. Planeje uma partição-cofre no Linux
+
+```bash
+./bin/distrohop vault create \
+  --disk /dev/sdX \
+  --size-gib 32 \
+  --backup /media/outro-disco/distrohop-bundle \
+  --dry-run
+```
+
+A execução também exige `--execute`, root, uma frase longa de confirmação e um
+segundo bundle verificado em outro disco. O planejador aceita espaço livre GPT
+ou um encolhimento altamente restrito da última partição Btrfs single-device.
+Ele recusa encolhimento de Ext4/XFS, estados Btrfs inseguros, margem
+insuficiente, ambiguidade de disco do sistema e planos desatualizados. Nunca
+edita o bootloader nem o `fstab`.
+
+Leia o [contrato completo de segurança do cofre](docs/VAULT.md) antes de
+considerar `--execute`.
+
+## Como ele preserva a segurança
+
+- Bancos SQLite são copiados por snapshots consistentes, incluindo o WAL.
+- Todo bundle possui manifesto e checksums SHA-256.
+- Cada destino é escrito em diretório temporário, relido, verificado e
+  renomeado atomicamente.
+- O restore verifica primeiro e mantém o perfil anterior.
+- Senhas nunca aparecem nos argumentos de processos ou estados de retomada.
+- NixOS e Guix recebem orientação declarativa em vez de mudanças imperativas.
+- Sistemas rpm-ostree e transactional-update exigem um novo boot antes da
+  retomada.
+- A partição-cofre começa em planejamento somente leitura e revalida setores
+  imediatamente antes da formatação.
+
+## Compatibilidade Linux
+
+| Estratégia | Famílias e exemplos |
+| --- | --- |
+| APT | Debian, Ubuntu, Mint, Pop!_OS, elementary, Zorin, Kali, MX, Deepin |
+| pacman | Arch, CachyOS, Manjaro, EndeavourOS, Garuda, Artix, KaOS |
+| DNF/RPM | Fedora, RHEL, CentOS, Rocky, AlmaLinux, Oracle Linux, Nobara |
+| Zypper | openSUSE Leap, Tumbleweed, Slowroll, SLES, SLED |
+| Outros nativos | Alpine, Void, Gentoo, Solus, Clear Linux, Slackware, Mageia, PCLinuxOS |
+| Atômicos/imutáveis | Silverblue, Kinoite, Bazzite, Bluefin, Aurora, CoreOS, MicroOS, Aeon, Kalpa, Vanilla OS, SteamOS, Endless OS |
+| Declarativos | NixOS, GNU Guix, blendOS |
+| Distro desconhecida | detecção de capacidades e orientação segura por Flatpak/manual |
+
+Veja a detecção e o comportamento exatos dos pacotes em
+[Compatibilidade Linux](docs/LINUX-COMPATIBILITY.md).
+
+## Documentação
+
+| Guia | Use quando… |
+| --- | --- |
+| [Compatibilidade Linux](docs/LINUX-COMPATIBILITY.md) | você precisa da matriz de distros, regras de detecção ou comportamento atômico/declarativo |
+| [Suporte Windows](docs/WINDOWS.md) | você precisa de detalhes sobre DPAPI, Defender, WinGet, navegadores ou volumes |
+| [Partição-cofre](docs/VAULT.md) | você está revisando as travas de segurança das partições |
+| [Design da GUI](docs/GUI-DESIGN.md) | você quer conhecer a linguagem visual e as animações |
+| [Política de segurança](SECURITY.md) | você encontrou uma vulnerabilidade ou precisa dos limites de ameaça |
+| [Especificação técnica](SPEC.md) | você quer o contrato completo de arquitetura e comportamento |
+
+## Desenvolvimento e validação
+
+```bash
+python3 -m unittest discover -v
+python3 -m compileall -q distrohop tests
+python3 -m pip install --no-deps .
+```
+
+Os testes cobrem detecção, captura, bundles, criptografia, restauração atômica,
+conversão cross-engine, GUI, fluxos NixOS/atômicos, fixtures Windows e o
+planejador do cofre. O AES-GCM é conferido contra vetores NIST.
+
+O projeto é testado em CI no Linux e Windows. Um smoke test em Windows físico,
+assinatura do release e verificações de reputação ainda são obrigatórios antes
+de distribuir executáveis Windows confiáveis.
+
+## Segurança
+
+Não anexe bundles, perfis, cookies, `Local State`, chaves, tokens ou imagens de
+disco reais a uma issue pública. Relate vulnerabilidades em particular por
+**Security → Advisories → New draft security advisory** neste repositório.
+
+## Licença e créditos
+
+Criado por **Lina** e licenciado sob a
+[Apache License 2.0](LICENSE). Você pode usar, modificar e distribuir o
+DistroHop, inclusive comercialmente, respeitando os termos da licença.
+
+O DistroHop é independente e não possui afiliação com distribuições Linux,
+fornecedores de navegadores, provedores de IA, Microsoft ou projetos
+mencionados na documentação.

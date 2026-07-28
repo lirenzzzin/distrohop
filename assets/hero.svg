@@ -1,0 +1,94 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 460" role="img" aria-labelledby="title description">
+  <title id="title">DistroHop</title>
+  <desc id="description">A verified migration bundle travels safely from Linux to another distribution or Windows.</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#11151a"/>
+      <stop offset="0.52" stop-color="#171d28"/>
+      <stop offset="1" stop-color="#11151a"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6d8dff"/>
+      <stop offset="1" stop-color="#2962ff"/>
+    </linearGradient>
+    <linearGradient id="success" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#54c999"/>
+      <stop offset="1" stop-color="#16865c"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="16" stdDeviation="18" flood-color="#05070a" flood-opacity=".45"/>
+    </filter>
+    <filter id="glow" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="16"/>
+    </filter>
+  </defs>
+
+  <rect width="1280" height="460" rx="28" fill="url(#background)"/>
+  <circle cx="641" cy="228" r="126" fill="#2962ff" opacity=".10" filter="url(#glow)"/>
+  <circle cx="1116" cy="70" r="110" fill="#54c999" opacity=".05"/>
+  <circle cx="114" cy="420" r="145" fill="#6d8dff" opacity=".05"/>
+
+  <text x="640" y="77" text-anchor="middle" fill="#f1f5f8" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="42" font-weight="700" letter-spacing=".5">DistroHop</text>
+  <text x="640" y="111" text-anchor="middle" fill="#a2adb8" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="17">Detect · Protect · Verify · Restore</text>
+
+  <g filter="url(#shadow)">
+    <rect x="76" y="147" width="300" height="196" rx="22" fill="#1b2128" stroke="#3b444d"/>
+    <rect x="98" y="169" width="256" height="130" rx="12" fill="#11151a" stroke="#2c343d"/>
+    <circle cx="126" cy="194" r="8" fill="#54c999"/>
+    <text x="146" y="200" fill="#a2adb8" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="15">source detected</text>
+    <path d="M145 236a26 26 0 1 1-52 0 26 26 0 0 1 52 0Z" fill="#2962ff" opacity=".18"/>
+    <path d="M119 216c-6 8-10 13-10 20 0 8 5 15 10 20 5-5 10-12 10-20 0-7-4-12-10-20Z" fill="#6d8dff"/>
+    <text x="163" y="233" fill="#f1f5f8" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="19" font-weight="600">Linux</text>
+    <text x="163" y="257" fill="#667482" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="14">browser + AI + dev data</text>
+    <path d="M177 320h98l17 23H160Z" fill="#2c343d"/>
+  </g>
+
+  <path d="M395 246h95" fill="none" stroke="#3b444d" stroke-width="3" stroke-linecap="round"/>
+  <path d="m477 235 14 11-14 11" fill="none" stroke="#6d8dff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="424" cy="246" r="4" fill="#6d8dff"/>
+  <circle cx="449" cy="246" r="4" fill="#6d8dff" opacity=".62"/>
+
+  <g filter="url(#shadow)">
+    <rect x="490" y="135" width="300" height="222" rx="26" fill="#1b2128" stroke="#6d8dff" stroke-opacity=".48"/>
+    <path d="M535 180a12 12 0 0 1 12-12h70l23 23v106a12 12 0 0 1-12 12h-81a12 12 0 0 1-12-12Z" fill="url(#accent)"/>
+    <path d="M617 168v22a5 5 0 0 0 5 5h18" fill="#89a2ff" opacity=".8"/>
+    <path d="M566 243v-12a18 18 0 0 1 36 0v12" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round"/>
+    <rect x="559" y="241" width="50" height="37" rx="9" fill="#fff"/>
+    <circle cx="584" cy="256" r="5" fill="#2962ff"/>
+    <path d="M584 260v7" stroke="#2962ff" stroke-width="4" stroke-linecap="round"/>
+    <text x="669" y="205" fill="#f1f5f8" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="20" font-weight="650">Verified bundle</text>
+    <text x="669" y="235" fill="#a2adb8" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="14">encrypted payload</text>
+    <text x="669" y="258" fill="#a2adb8" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="14">SHA-256 manifest</text>
+    <g transform="translate(668 279)">
+      <circle cx="13" cy="13" r="13" fill="url(#success)"/>
+      <path d="m7 13 4 4 8-9" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="36" y="18" fill="#54c999" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="14" font-weight="600">copy verified</text>
+    </g>
+  </g>
+
+  <path d="M790 246h95" fill="none" stroke="#3b444d" stroke-width="3" stroke-linecap="round"/>
+  <path d="m872 235 14 11-14 11" fill="none" stroke="#54c999" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="819" cy="246" r="4" fill="#54c999"/>
+  <circle cx="844" cy="246" r="4" fill="#54c999" opacity=".62"/>
+
+  <g filter="url(#shadow)">
+    <rect x="885" y="147" width="319" height="196" rx="22" fill="#1b2128" stroke="#3b444d"/>
+    <rect x="907" y="169" width="275" height="130" rx="12" fill="#11151a" stroke="#2c343d"/>
+    <circle cx="935" cy="194" r="8" fill="#54c999"/>
+    <text x="955" y="200" fill="#a2adb8" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="15">ready to restore</text>
+    <rect x="932" y="221" width="50" height="50" rx="13" fill="#54c999" opacity=".15"/>
+    <path d="M947 245h20m-10-10v20" stroke="#54c999" stroke-width="4" stroke-linecap="round"/>
+    <text x="1002" y="239" fill="#f1f5f8" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="18" font-weight="600">Linux or Windows</text>
+    <text x="1002" y="263" fill="#667482" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="14">atomic or cross-engine</text>
+    <path d="M1001 320h98l17 23H984Z" fill="#2c343d"/>
+  </g>
+
+  <g transform="translate(448 403)">
+    <circle cx="8" cy="8" r="4" fill="#6d8dff"/>
+    <text x="21" y="13" fill="#667482" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="14">dry-run first</text>
+    <circle cx="136" cy="8" r="4" fill="#54c999"/>
+    <text x="149" y="13" fill="#667482" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="14">independent copies</text>
+    <circle cx="307" cy="8" r="4" fill="#f0a84a"/>
+    <text x="320" y="13" fill="#667482" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="14">safe fallbacks</text>
+  </g>
+</svg>
