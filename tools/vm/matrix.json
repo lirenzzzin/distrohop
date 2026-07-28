@@ -18,7 +18,7 @@
       "checksum_algorithm": "sha256",
       "setup_commands": [
         "sudo env DEBIAN_FRONTEND=noninteractive apt-get update",
-        "sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y python3 python3-tk xvfb xauth openssl libnss3-tools util-linux e2fsprogs git rsync"
+        "sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y python3 python3-tk xvfb xauth openssl libnss3-tools util-linux fdisk e2fsprogs git rsync"
       ]
     },
     {
@@ -32,7 +32,7 @@
       "checksum_algorithm": "sha512",
       "setup_commands": [
         "sudo env DEBIAN_FRONTEND=noninteractive apt-get update",
-        "sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y python3 python3-tk xvfb xauth openssl libnss3-tools util-linux e2fsprogs git rsync"
+        "sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y python3 python3-tk xvfb xauth openssl libnss3-tools util-linux fdisk e2fsprogs git rsync"
       ]
     },
     {

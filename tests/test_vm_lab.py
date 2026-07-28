@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
 from tools import vm_lab
+from tools.vm import guest_smoke
 
 
 class VmMatrixTests(unittest.TestCase):
@@ -158,6 +160,18 @@ class ResourcePolicyTests(unittest.TestCase):
             vm_lab.command_destroy(distro, root, True)
             self.assertFalse(paths["instance"].exists())
             self.assertTrue(paths["base"].exists())
+
+    def test_gui_smoke_runs_as_a_module_so_repo_imports_are_available(self) -> None:
+        with patch.object(
+            guest_smoke,
+            "run",
+            return_value=subprocess.CompletedProcess([], 0, "", ""),
+        ) as runner:
+            guest_smoke.gui_smoke()
+
+        argv = runner.call_args.args[0]
+        self.assertIn("-m", argv)
+        self.assertIn("tools.vm.guest_smoke", argv)
 
 
 if __name__ == "__main__":
