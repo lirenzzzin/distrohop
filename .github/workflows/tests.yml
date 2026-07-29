@@ -42,7 +42,7 @@ jobs:
           tests.test_phase7_windows
           tests.test_platform
       - name: Real Windows runtime smoke
-        run: python tools/windows_smoke.py
+        run: python -m tools.windows_smoke
       - name: Compile
         run: python -m compileall -q distrohop
       - name: Package install
