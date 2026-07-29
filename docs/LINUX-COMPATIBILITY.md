@@ -34,6 +34,21 @@ com Flatpak ou instrução manual, sem inventar comandos.
 | GNU Guix | Guix System | Guix | declarativa, nunca instala imperativamente |
 | blendOS | blendOS | system.yaml/Akshara; Flatpak para apps | declarativa |
 
+## Estado dos testes reais
+
+Em 2026-07-29, seis guests headless completaram todos os portões do laboratório:
+
+| Estado | Distribuições |
+|---|---|
+| **Testado: aprovado** | Ubuntu 26.04 LTS, Debian 13, Fedora 44, Arch Linux, openSUSE Tumbleweed, Alpine 3.24 |
+| **Não testado** | Todas as outras distribuições reconhecidas na matriz acima |
+
+Cada aprovação inclui suíte unitária, detecção real do sistema e gerenciador,
+dry-run do backup, criação e verificação de um bundle sintético real e smoke da
+GUI Tk em Xvfb. Fixtures unitárias e reconhecimento por família não promovem
+uma distro para “testada”. MicroOS, NixOS e os demais casos
+atômicos/imutáveis/declarativos não foram executados no laboratório.
+
 Os comandos são armazenados como vetores de argumentos, não strings de shell.
 Isso permite mostrar comandos exatos em `--dry-run` sem problemas de quoting e
 reutilizá-los pelos instaladores das fases posteriores.

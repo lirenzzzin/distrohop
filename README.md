@@ -185,6 +185,9 @@ Read the complete [vault safety contract](docs/VAULT.md) before considering
 
 ## Linux compatibility
 
+The table below describes implemented behavior. It does **not** claim that
+every listed distribution has been exercised in a real guest.
+
 | Strategy | Families and examples |
 | --- | --- |
 | APT | Debian, Ubuntu, Mint, Pop!_OS, elementary, Zorin, Kali, MX, Deepin |
@@ -195,6 +198,18 @@ Read the complete [vault safety contract](docs/VAULT.md) before considering
 | Atomic/immutable | Silverblue, Kinoite, Bazzite, Bluefin, Aurora, CoreOS, MicroOS, Aeon, Kalpa, Vanilla OS, SteamOS, Endless OS |
 | Declarative | NixOS, GNU Guix, blendOS |
 | Unknown distro | capability detection, then safe Flatpak/manual guidance |
+
+### Runtime validation status
+
+| Status | Systems | What was exercised |
+| --- | --- | --- |
+| ✅ Tested — passed | Ubuntu 26.04 LTS, Debian 13, Fedora 44, Arch Linux, openSUSE Tumbleweed, Alpine 3.24 | Full unit suite, native distro/manager detection, backup dry-run, real synthetic bundle plus verification, and Tk GUI smoke under Xvfb |
+| ⬜ Not tested yet | Mint, Pop!_OS, elementary, Zorin, Kali, MX, Deepin, CachyOS, Manjaro, EndeavourOS, Garuda, Artix, KaOS, RHEL, CentOS, Rocky, AlmaLinux, Oracle Linux, Nobara, openSUSE Leap/Slowroll, SLES/SLED, postmarketOS, Void, Gentoo/Calculate, Solus, Clear Linux, Slackware/Salix, Mageia, PCLinuxOS | Support is implemented, but no complete runtime cycle has been recorded |
+| ⬜ Not tested yet — special lifecycle | Silverblue, Kinoite, Bazzite, Bluefin, Aurora, CoreOS, MicroOS, Aeon, Kalpa, Vanilla OS, SteamOS, Endless OS, NixOS, GNU Guix, blendOS | Atomic, immutable, and declarative safety paths are unit-tested; real reboot/declarative guest cycles have not been run |
+
+On Windows, the GitHub-hosted Windows runner smoke passed. A complete local
+Windows 11 backup/restore and GUI cycle has **not** passed yet, so Windows 11
+end-to-end remains explicitly untested.
 
 See the exact detection and package behavior in
 [Linux compatibility](docs/LINUX-COMPATIBILITY.md).
@@ -223,9 +238,11 @@ The test suite covers detection, capture, bundles, cryptography, atomic
 restore, cross-engine conversion, GUI behavior, NixOS/atomic flows, Windows
 fixtures, and the vault planner. AES-GCM is checked against NIST vectors.
 
-The project is tested in CI on Linux and Windows. A physical Windows smoke test,
-release signing, and reputation checks are still required before distributing
-trusted Windows executables.
+The project is tested in CI on Linux and Windows. The six Linux guests listed
+above also passed the headless runtime cycle. A complete Windows 11
+backup/restore test, physical Windows smoke test, release signing, and
+reputation checks are still required before distributing trusted Windows
+executables.
 
 ## Security
 
@@ -423,6 +440,9 @@ considerar `--execute`.
 
 ## Compatibilidade Linux
 
+Esta tabela descreve o suporte implementado. Ela **não** afirma que todas as
+distribuições listadas foram executadas numa máquina virtual real.
+
 | Estratégia | Famílias e exemplos |
 | --- | --- |
 | APT | Debian, Ubuntu, Mint, Pop!_OS, elementary, Zorin, Kali, MX, Deepin |
@@ -433,6 +453,18 @@ considerar `--execute`.
 | Atômicos/imutáveis | Silverblue, Kinoite, Bazzite, Bluefin, Aurora, CoreOS, MicroOS, Aeon, Kalpa, Vanilla OS, SteamOS, Endless OS |
 | Declarativos | NixOS, GNU Guix, blendOS |
 | Distro desconhecida | detecção de capacidades e orientação segura por Flatpak/manual |
+
+### Estado da validação em runtime
+
+| Estado | Sistemas | O que foi exercitado |
+| --- | --- | --- |
+| ✅ Testado — aprovado | Ubuntu 26.04 LTS, Debian 13, Fedora 44, Arch Linux, openSUSE Tumbleweed, Alpine 3.24 | Suíte unitária completa, detecção nativa da distro/gerenciador, dry-run do backup, bundle sintético real com verificação e smoke da GUI Tk sob Xvfb |
+| ⬜ Ainda não testado | Mint, Pop!_OS, elementary, Zorin, Kali, MX, Deepin, CachyOS, Manjaro, EndeavourOS, Garuda, Artix, KaOS, RHEL, CentOS, Rocky, AlmaLinux, Oracle Linux, Nobara, openSUSE Leap/Slowroll, SLES/SLED, postmarketOS, Void, Gentoo/Calculate, Solus, Clear Linux, Slackware/Salix, Mageia, PCLinuxOS | O suporte está implementado, mas nenhum ciclo completo em runtime foi registrado |
+| ⬜ Ainda não testado — ciclo especial | Silverblue, Kinoite, Bazzite, Bluefin, Aurora, CoreOS, MicroOS, Aeon, Kalpa, Vanilla OS, SteamOS, Endless OS, NixOS, GNU Guix, blendOS | As travas atômicas, imutáveis e declarativas têm testes unitários; os ciclos reais com reboot/configuração declarativa ainda não foram executados |
+
+No Windows, o smoke no runner Windows do GitHub foi aprovado. Um ciclo local
+completo de backup/restore e GUI no Windows 11 **não** foi aprovado ainda;
+portanto o Windows 11 end-to-end continua explicitamente não testado.
 
 Veja a detecção e o comportamento exatos dos pacotes em
 [Compatibilidade Linux](docs/LINUX-COMPATIBILITY.md).
@@ -461,9 +493,11 @@ Os testes cobrem detecção, captura, bundles, criptografia, restauração atôm
 conversão cross-engine, GUI, fluxos NixOS/atômicos, fixtures Windows e o
 planejador do cofre. O AES-GCM é conferido contra vetores NIST.
 
-O projeto é testado em CI no Linux e Windows. Um smoke test em Windows físico,
-assinatura do release e verificações de reputação ainda são obrigatórios antes
-de distribuir executáveis Windows confiáveis.
+O projeto é testado em CI no Linux e Windows. Os seis guests Linux listados
+acima também passaram pelo ciclo headless em runtime. Um teste completo de
+backup/restore no Windows 11, smoke em Windows físico, assinatura do release e
+verificações de reputação ainda são obrigatórios antes de distribuir
+executáveis Windows confiáveis.
 
 ## Segurança
 

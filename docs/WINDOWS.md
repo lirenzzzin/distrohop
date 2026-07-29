@@ -60,8 +60,17 @@ binário `openssl` estiver disponível.
 
 Como o desenvolvimento ocorre em Linux, DPAPI, PowerShell, WinGet, volumes,
 processos e bootstrap são cobertos por fixtures/mocks; AES-GCM usa vetores
-conhecidos e perfis SQLite sintéticos. Um smoke test numa máquina Windows real
-continua sendo obrigatório antes de publicar um release assinado.
+conhecidos e perfis SQLite sintéticos.
+
+| Ambiente | Estado | Cobertura |
+|---|---|---|
+| Runner Windows do GitHub Actions | **Testado: aprovado** | Detecção real do Defender, Chrome/Edge/Firefox, DPAPI, WinGet, perfil sintético, bundle verificado e Tk 8.6 |
+| Windows 11 Enterprise em VM local | **Não testado end-to-end** | A instalação e o desktop chegaram a iniciar, mas o provisionamento SSH não terminou e o ciclo do Distrohop não foi executado |
+| Máquina Windows física | **Não testado** | Obrigatório antes de publicar um release Windows assinado |
+
+O sucesso no runner não é apresentado como validação completa de Windows 11:
+backup/restore real, GUI, diálogo do Defender com interação humana e
+comportamento de antivírus/reputação ainda precisam do ciclo end-to-end.
 
 Fontes primárias:
 

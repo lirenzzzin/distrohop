@@ -45,19 +45,24 @@ status, and whether the current free-memory gate would allow a guest.
 
 | Target | Native setup | Tier | Status |
 | --- | --- | --- | --- |
-| Ubuntu 26.04 LTS | APT | core | automated |
-| Debian 13 | APT | core | automated |
-| Fedora 44 | DNF | core | automated |
-| Arch Linux | pacman | core | automated |
-| openSUSE Tumbleweed | Zypper | core | automated |
-| Alpine 3.24 | APK | core | automated |
-| openSUSE MicroOS | transactional-update | extended | manual, reboot-aware harness pending |
-| NixOS | Nix | extended | manual, reproducible cloud-image generation pending |
+| Ubuntu 26.04 LTS | APT | core | **tested: passed** (2026-07-29) |
+| Debian 13 | APT | core | **tested: passed** (2026-07-29) |
+| Fedora 44 | DNF | core | **tested: passed** (2026-07-29) |
+| Arch Linux | pacman | core | **tested: passed** (2026-07-29) |
+| openSUSE Tumbleweed | Zypper | core | **tested: passed** (2026-07-29) |
+| Alpine 3.24 | APK | core | **tested: passed** (2026-07-29) |
+| openSUSE MicroOS | transactional-update | extended | **not tested**; reboot-aware harness pending |
+| NixOS | Nix | extended | **not tested**; reproducible cloud-image generation pending |
 
 Core entries use official HTTPS cloud images and official checksum files.
 Rolling images are verified on every fetch. Matrix definitions and
 distro-specific package commands live in
 [`tools/vm/matrix.json`](../tools/vm/matrix.json).
+
+“Tested: passed” means the recorded guest report has `ok: true` and all six
+runtime gates passed: unit suite, distro detection, synthetic fixture, backup
+dry-run, real backup plus verification, and GUI/Xvfb smoke. It does not extend
+that claim to other distributions in the same package family.
 
 MicroOS is not silently treated like ordinary Tumbleweed: package installation
 is transactional and needs a reboot/resume-aware two-boot cycle. NixOS is also
@@ -176,19 +181,25 @@ se a memória livre atual passa pela trava para iniciar um guest.
 
 | Alvo | Preparação nativa | Nível | Estado |
 | --- | --- | --- | --- |
-| Ubuntu 26.04 LTS | APT | core | automatizado |
-| Debian 13 | APT | core | automatizado |
-| Fedora 44 | DNF | core | automatizado |
-| Arch Linux | pacman | core | automatizado |
-| openSUSE Tumbleweed | Zypper | core | automatizado |
-| Alpine 3.24 | APK | core | automatizado |
-| openSUSE MicroOS | transactional-update | extended | manual, aguardando fluxo com reboot |
-| NixOS | Nix | extended | manual, aguardando geração reproduzível de imagem cloud |
+| Ubuntu 26.04 LTS | APT | core | **testado: aprovado** (2026-07-29) |
+| Debian 13 | APT | core | **testado: aprovado** (2026-07-29) |
+| Fedora 44 | DNF | core | **testado: aprovado** (2026-07-29) |
+| Arch Linux | pacman | core | **testado: aprovado** (2026-07-29) |
+| openSUSE Tumbleweed | Zypper | core | **testado: aprovado** (2026-07-29) |
+| Alpine 3.24 | APK | core | **testado: aprovado** (2026-07-29) |
+| openSUSE MicroOS | transactional-update | extended | **não testado**; aguardando fluxo com reboot |
+| NixOS | Nix | extended | **não testado**; aguardando geração reproduzível de imagem cloud |
 
 Os alvos core usam imagens cloud HTTPS oficiais e arquivos oficiais de
 checksum. Imagens rolling são verificadas em todo download. A matriz e os
 comandos diferentes para cada família ficam em
 [`tools/vm/matrix.json`](../tools/vm/matrix.json).
+
+“Testado: aprovado” significa que o relatório registrado do guest contém
+`ok: true` e que os seis portões passaram: suíte unitária, detecção da distro,
+fixture sintética, dry-run do backup, backup real com verificação e smoke da
+GUI/Xvfb. Essa aprovação não é estendida a outras distribuições da mesma
+família de pacotes.
 
 O MicroOS não é tratado silenciosamente como um Tumbleweed tradicional: a
 instalação é transacional e exige um ciclo de dois boots consciente da
