@@ -1,6 +1,7 @@
 # distrohop — migração de perfis entre distros (e Windows)
 
-> Este arquivo é a **especificação técnica do projeto**. Cada seção descreve requisitos executáveis e documenta explicitamente os comportamentos sutis.
+> Este arquivo é a **especificação técnica do projeto**. Cada seção descreve
+> requisitos executáveis e documenta explicitamente os comportamentos sutis.
 
 ## Contexto
 
