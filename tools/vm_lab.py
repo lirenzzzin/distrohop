@@ -427,6 +427,7 @@ def cloud_config(
     swap_mb: int,
     *,
     unlock_user: bool = False,
+    user: str = SSH_USER,
 ) -> str:
     key = " ".join(public_key.strip().split())
     if not key.startswith(("ssh-ed25519 ", "ssh-rsa ", "ecdsa-sha2-")):
@@ -456,7 +457,7 @@ runcmd:
   - [sh, -c, "grep -q '^/swapfile ' /etc/fstab || printf '/swapfile none swap sw 0 0\\n' >> /etc/fstab"]
 final_message: "Distrohop VM ready"
 """.format(
-        user=SSH_USER,
+        user=user,
         key=key,
         lock_passwd="false" if unlock_user else "true",
         swap=int(swap_mb),
@@ -519,6 +520,7 @@ def command_create(
                 public_key,
                 int(defaults["guest_swap_mb"]),
                 unlock_user=bool(distro.get("unlock_user", False)),
+                user=str(distro.get("ssh_user", SSH_USER)),
             ),
             encoding="utf-8",
         )
@@ -700,7 +702,7 @@ def ssh_argv(distro: Mapping[str, Any], root: Path) -> List[str]:
         "UserKnownHostsFile={}".format(root / "known_hosts"),
         "-o",
         "ConnectTimeout=5",
-        "{}@127.0.0.1".format(SSH_USER),
+        "{}@127.0.0.1".format(distro.get("ssh_user", SSH_USER)),
     ]
 
 

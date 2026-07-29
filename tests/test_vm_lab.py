@@ -113,8 +113,10 @@ class ResourcePolicyTests(unittest.TestCase):
             "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITest lab",
             1024,
             unlock_user=distro["unlock_user"],
+            user=distro["ssh_user"],
         )
 
+        self.assertIn("- name: alpine", config)
         self.assertIn("lock_passwd: false", config)
         self.assertIn("ssh_pwauth: false", config)
 
