@@ -81,6 +81,7 @@
       "name": "Alpine Linux 3.24",
       "tier": "core",
       "automated": true,
+      "unlock_user": true,
       "ssh_port": 22406,
       "image_url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/releases/cloud/generic_alpine-3.24.1-x86_64-uefi-cloudinit-r0.qcow2",
       "checksum_url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/releases/cloud/generic_alpine-3.24.1-x86_64-uefi-cloudinit-r0.qcow2.sha512",

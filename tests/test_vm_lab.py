@@ -106,6 +106,18 @@ class ResourcePolicyTests(unittest.TestCase):
         self.assertIn("fallocate -l 1024M", config)
         self.assertNotIn("plain_text_passwd", config)
 
+    def test_alpine_unlocks_key_only_user_for_its_ssh_policy(self) -> None:
+        matrix = vm_lab.load_matrix()
+        distro = vm_lab.distro_entry(matrix, "alpine-324")
+        config = vm_lab.cloud_config(
+            "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITest lab",
+            1024,
+            unlock_user=distro["unlock_user"],
+        )
+
+        self.assertIn("lock_passwd: false", config)
+        self.assertIn("ssh_pwauth: false", config)
+
     def test_qemu_is_headless_limited_low_priority_and_localhost_only(self) -> None:
         matrix = vm_lab.load_matrix()
         distro = vm_lab.distro_entry(matrix, "debian-13")

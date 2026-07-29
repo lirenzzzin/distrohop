@@ -422,14 +422,19 @@ def command_fetch(distro: Mapping[str, Any], root: Path) -> None:
     print("Verified image: {}".format(paths["base"]))
 
 
-def cloud_config(public_key: str, swap_mb: int) -> str:
+def cloud_config(
+    public_key: str,
+    swap_mb: int,
+    *,
+    unlock_user: bool = False,
+) -> str:
     key = " ".join(public_key.strip().split())
     if not key.startswith(("ssh-ed25519 ", "ssh-rsa ", "ecdsa-sha2-")):
         raise LabError("generated SSH public key has an unexpected format")
     return """#cloud-config
 users:
   - name: {user}
-    lock_passwd: true
+    lock_passwd: {lock_passwd}
     shell: /bin/sh
     sudo: "ALL=(ALL) NOPASSWD:ALL"
     ssh_authorized_keys:
@@ -450,7 +455,12 @@ runcmd:
   - [swapon, /swapfile]
   - [sh, -c, "grep -q '^/swapfile ' /etc/fstab || printf '/swapfile none swap sw 0 0\\n' >> /etc/fstab"]
 final_message: "Distrohop VM ready"
-""".format(user=SSH_USER, key=key, swap=int(swap_mb))
+""".format(
+        user=SSH_USER,
+        key=key,
+        lock_passwd="false" if unlock_user else "true",
+        swap=int(swap_mb),
+    )
 
 
 def _base_format(path: Path) -> str:
@@ -505,7 +515,11 @@ def command_create(
     try:
         public_key = paths["public_key"].read_text(encoding="ascii")
         staged["user_data"].write_text(
-            cloud_config(public_key, int(defaults["guest_swap_mb"])),
+            cloud_config(
+                public_key,
+                int(defaults["guest_swap_mb"]),
+                unlock_user=bool(distro.get("unlock_user", False)),
+            ),
             encoding="utf-8",
         )
         staged["meta_data"].write_text(
