@@ -88,7 +88,7 @@
       "checksum_url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/releases/cloud/generic_alpine-3.24.1-x86_64-uefi-cloudinit-r0.qcow2.sha512",
       "checksum_algorithm": "sha512",
       "setup_commands": [
-        "sudo apk add python3 tk xvfb-run xauth font-dejavu openssl nss-tools util-linux e2fsprogs git rsync"
+        "sudo apk add python3 python3-tkinter xvfb-run xauth font-dejavu openssl nss-tools util-linux e2fsprogs git rsync"
       ]
     },
     {

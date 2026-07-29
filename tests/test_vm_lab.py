@@ -60,6 +60,13 @@ class VmMatrixTests(unittest.TestCase):
             )
             self.assertIn(package, setup)
 
+    def test_alpine_installs_the_python_tk_binding(self) -> None:
+        matrix = vm_lab.load_matrix()
+        setup = " ".join(
+            vm_lab.distro_entry(matrix, "alpine-324")["setup_commands"]
+        )
+        self.assertIn("python3-tkinter", setup)
+
 
 class ChecksumTests(unittest.TestCase):
     def test_parses_gnu_fedora_and_bare_checksum_forms(self) -> None:
