@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -44,12 +45,14 @@ def run(
     *,
     check: bool = True,
     capture: bool = False,
+    env: Optional[Dict[str, str]] = None,
 ) -> subprocess.CompletedProcess:
     result = subprocess.run(
         list(argv),
         check=False,
         text=True,
         capture_output=capture,
+        env=env,
     )
     if check and result.returncode:
         detail = (result.stderr or result.stdout or "").strip()
@@ -254,19 +257,46 @@ def gui_child() -> int:
 
 
 def gui_smoke() -> None:
-    result = run(
-        (
-            "xvfb-run",
-            "-a",
-            "-s",
-            "-screen 0 1280x800x24",
-            "python3",
-            "-m",
-            "tools.vm.guest_smoke",
-            "--gui-child",
-        ),
-        capture=True,
+    child = (
+        "python3",
+        "-m",
+        "tools.vm.guest_smoke",
+        "--gui-child",
     )
+    if shutil.which("xvfb-run"):
+        result = run(
+            ("xvfb-run", "-a", "-s", "-screen 0 1280x800x24", *child),
+            capture=True,
+        )
+    else:
+        xvfb = shutil.which("Xvfb")
+        if not xvfb:
+            raise SmokeFailure("neither xvfb-run nor Xvfb is installed")
+        server = subprocess.Popen(
+            (xvfb, "-displayfd", "1", "-screen", "0", "1280x800x24"),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        try:
+            if server.stdout is None:
+                raise SmokeFailure("Xvfb did not expose its display")
+            display = server.stdout.readline().strip()
+            if not display.isdigit():
+                detail = server.stderr.read().strip() if server.stderr else ""
+                raise SmokeFailure("Xvfb failed to start: " + detail[-1000:])
+            result = run(
+                child,
+                capture=True,
+                env={**os.environ, "DISPLAY": ":" + display},
+            )
+        finally:
+            server.terminate()
+            try:
+                server.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                server.kill()
+                server.wait(timeout=5)
     if result.returncode:
         raise SmokeFailure("GUI smoke failed")
 

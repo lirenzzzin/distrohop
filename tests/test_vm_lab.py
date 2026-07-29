@@ -4,7 +4,7 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from tools import vm_lab
 from tools.vm import guest_smoke
@@ -164,6 +164,8 @@ class ResourcePolicyTests(unittest.TestCase):
 
     def test_gui_smoke_runs_as_a_module_so_repo_imports_are_available(self) -> None:
         with patch.object(
+            guest_smoke.shutil, "which", return_value="/usr/bin/xvfb-run"
+        ), patch.object(
             guest_smoke,
             "run",
             return_value=subprocess.CompletedProcess([], 0, "", ""),
@@ -173,6 +175,23 @@ class ResourcePolicyTests(unittest.TestCase):
         argv = runner.call_args.args[0]
         self.assertIn("-m", argv)
         self.assertIn("tools.vm.guest_smoke", argv)
+
+    def test_gui_smoke_starts_xvfb_when_distro_has_no_wrapper(self) -> None:
+        server = MagicMock()
+        server.stdout.readline.return_value = "7\n"
+        with patch.object(
+            guest_smoke.shutil,
+            "which",
+            side_effect=lambda command: None if command == "xvfb-run" else "/usr/bin/Xvfb",
+        ), patch.object(guest_smoke.subprocess, "Popen", return_value=server), patch.object(
+            guest_smoke,
+            "run",
+            return_value=subprocess.CompletedProcess([], 0, "", ""),
+        ) as runner:
+            guest_smoke.gui_smoke()
+
+        self.assertEqual(runner.call_args.kwargs["env"]["DISPLAY"], ":7")
+        server.terminate.assert_called_once()
 
 
 if __name__ == "__main__":
