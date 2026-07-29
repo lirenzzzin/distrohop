@@ -519,6 +519,12 @@ def command_start(root: Path, *, installer: bool) -> None:
                     CPUS,
                 )
             )
+            if installer:
+                # The Microsoft ISO briefly asks for a key before booting.
+                # Repeated space presses are harmless once Setup has started.
+                for _attempt in range(3):
+                    time.sleep(2)
+                    _monitor(root, "sendkey spc")
             return
         time.sleep(0.25)
     raise LabError("QEMU exited during Windows startup")
