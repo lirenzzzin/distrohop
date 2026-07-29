@@ -73,7 +73,7 @@
       "checksum_algorithm": "sha256",
       "setup_commands": [
         "sudo zypper --non-interactive refresh",
-        "sudo zypper --non-interactive install python3 python3-tk xorg-x11-server-Xvfb xauth openssl mozilla-nss-tools util-linux e2fsprogs git rsync"
+        "sudo zypper --non-interactive install python3 python3-tk dejavu-fonts xorg-x11-server-Xvfb xauth openssl mozilla-nss-tools util-linux e2fsprogs git rsync"
       ]
     },
     {

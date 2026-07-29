@@ -48,6 +48,18 @@ class VmMatrixTests(unittest.TestCase):
                 with self.assertRaises(vm_lab.LabError):
                     vm_lab.command_fetch(item, Path(temporary))
 
+    def test_minimal_gui_guests_install_a_real_font(self) -> None:
+        matrix = vm_lab.load_matrix()
+        for identifier, package in (
+            ("arch", "ttf-dejavu"),
+            ("opensuse-tumbleweed", "dejavu-fonts"),
+            ("alpine-324", "font-dejavu"),
+        ):
+            setup = " ".join(
+                vm_lab.distro_entry(matrix, identifier)["setup_commands"]
+            )
+            self.assertIn(package, setup)
+
 
 class ChecksumTests(unittest.TestCase):
     def test_parses_gnu_fedora_and_bare_checksum_forms(self) -> None:
