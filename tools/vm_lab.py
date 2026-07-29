@@ -542,6 +542,14 @@ def command_create(
         _run(
             (
                 "qemu-img",
+                "resize",
+                str(staged["overlay"]),
+                "{}G".format(int(defaults["system_disk_gib"])),
+            )
+        )
+        _run(
+            (
+                "qemu-img",
                 "create",
                 "-f",
                 "qcow2",

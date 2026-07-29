@@ -3,6 +3,7 @@
   "defaults": {
     "memory_mb": 2048,
     "cpus": 2,
+    "system_disk_gib": 8,
     "data_disk_gib": 8,
     "guest_swap_mb": 1024
   },

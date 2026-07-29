@@ -16,6 +16,7 @@ class VmMatrixTests(unittest.TestCase):
 
         self.assertLessEqual(matrix["defaults"]["memory_mb"], 2048)
         self.assertLessEqual(matrix["defaults"]["cpus"], 2)
+        self.assertGreaterEqual(matrix["defaults"]["system_disk_gib"], 8)
         automated = [item for item in matrix["distros"] if item["automated"]]
         self.assertEqual(
             {item["id"] for item in automated},
