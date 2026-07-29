@@ -59,7 +59,7 @@
       "checksum_url": "https://geo.mirror.pkgbuild.com/images/latest/Arch-Linux-x86_64-cloudimg.qcow2.SHA256",
       "checksum_algorithm": "sha256",
       "setup_commands": [
-        "sudo pacman -Syu --noconfirm --needed python tk xorg-server-xvfb xorg-xauth openssl nss util-linux e2fsprogs git rsync"
+        "sudo pacman -Syu --noconfirm --needed python tk ttf-dejavu xorg-server-xvfb xorg-xauth openssl nss util-linux e2fsprogs git rsync"
       ]
     },
     {
